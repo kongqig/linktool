@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 输出类型：Windows应用程序 -->
+    <OutputType>WinExe</OutputType>
+    <!-- 目标框架：.NET 8.0 Windows -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- 启用WPF支持 -->
+    <UseWPF>true</UseWPF>
+    <!-- 启用可空引用类型 -->
+    <Nullable>enable</Nullable>
+    <!-- 启用隐式using -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 应用程序图标（可选） -->
+    <ApplicationIcon />
+    <!-- 生成单文件发布时包含本地库 -->
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+  <!-- 应用程序清单，用于请求管理员权限 -->
+  <ItemGroup>
+    <ApplicationManifest Include="app.manifest" />
+  </ItemGroup>
+
+</Project>
