@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="LinkTool - 文件夹移动工具"
         Width="520"
-        Height="260"
+        Height="400"
         ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
         FontSize="14"
@@ -25,6 +25,18 @@
             <RowDefinition Height="16" />
             <!-- 底部按钮行 -->
             <RowDefinition Height="Auto" />
+            <!-- 间距 -->
+            <RowDefinition Height="12" />
+            <!-- 进度计数行 -->
+            <RowDefinition Height="Auto" />
+            <!-- 进度条行 -->
+            <RowDefinition Height="Auto" />
+            <!-- 当前文件行 -->
+            <RowDefinition Height="Auto" />
+            <!-- 间距 -->
+            <RowDefinition Height="8" />
+            <!-- 提示标签行 -->
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid.ColumnDefinitions>
@@ -41,7 +53,6 @@
         <TextBox Grid.Row="1" Grid.Column="0"
                  x:Name="FromTextBox"
                  Margin="0,0,8,0"
-                 IsReadOnly="True"
                  VerticalContentAlignment="Center"
                  Padding="4,0" />
 
@@ -61,7 +72,6 @@
         <TextBox Grid.Row="4" Grid.Column="0"
                  x:Name="ToTextBox"
                  Margin="0,0,8,0"
-                 IsReadOnly="True"
                  VerticalContentAlignment="Center"
                  Padding="4,0" />
 
@@ -86,8 +96,49 @@
             <!-- 移动按钮 -->
             <Button x:Name="MoveButton"
                     Content="移动"
-                    Width="100"
+                    Width="80"
+                    Margin="0,0,8,0"
                     Click="MoveButton_Click" />
+
+            <!-- 创建目录链接按钮 -->
+            <Button x:Name="CreateJunctionButton"
+                    Content="创建目录链接"
+                    Width="120"
+                    Click="CreateJunctionButton_Click" />
         </StackPanel>
+
+        <!-- 进度计数 -->
+        <TextBlock Grid.Row="8" Grid.ColumnSpan="2"
+                   x:Name="ProgressCountText"
+                   Text="0/0"
+                   HorizontalAlignment="Center"
+                   FontSize="12"
+                   Foreground="Gray" />
+
+        <!-- 进度条 -->
+        <ProgressBar Grid.Row="9" Grid.ColumnSpan="2"
+                     x:Name="ProgressBar"
+                     Height="18"
+                     Minimum="0"
+                     Maximum="100"
+                     Value="0" />
+
+        <!-- 当前文件 -->
+        <TextBlock Grid.Row="10" Grid.ColumnSpan="2"
+                   x:Name="CurrentFileText"
+                   Text=""
+                   TextTrimming="CharacterEllipsis"
+                   FontSize="12"
+                   Foreground="Gray"
+                   Margin="0,2,0,0" />
+
+        <!-- 提示标签 -->
+        <TextBlock Grid.Row="12" Grid.ColumnSpan="2"
+                   x:Name="TipText"
+                   Text="提示：移动操作会将源文件夹内容移动到目标位置；创建目录链接会在目标位置建立 Junction 链接指向源目录。"
+                   TextWrapping="Wrap"
+                   FontSize="11"
+                   Foreground="DarkGray"
+                   Margin="0,4,0,0" />
     </Grid>
 </Window>
