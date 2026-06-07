@@ -537,6 +537,7 @@ namespace linktool
         /// <summary>
         /// 检查 from 下所有文件的可访问性
         /// 返回不可访问的文件列表（空列表表示全部可访问）
+        /// 使用 FileShare.ReadWrite | FileShare.Delete 避免因其他进程正常读取而误报
         /// </summary>
         private static List<string> CheckFileAccessibility(string fromPath)
         {
@@ -547,7 +548,9 @@ namespace linktool
                 {
                     try
                     {
-                        using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+                        // 使用 ReadWrite + Delete 共享模式，只要能读取就视为可访问
+                        // 避免因杀毒软件、搜索索引器等正常读取进程导致误报
+                        using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                     }
                     catch (UnauthorizedAccessException)
                     {
@@ -555,7 +558,15 @@ namespace linktool
                     }
                     catch (IOException)
                     {
-                        deniedFiles.Add(file);
+                        // IOException 可能是真正的独占锁定，也可能是路径问题
+                        // 用 Win32 错误码区分：只有真正无法读取的才报错
+                        var errorCode = Marshal.GetHRForLastWin32Error();
+                        // ERROR_SHARING_VIOLATION (32) = 其他进程独占，不算不可访问
+                        // ERROR_LOCK_VIOLATION (33) = 锁冲突，不算不可访问
+                        if (errorCode != 0x80070020 && errorCode != 0x80070021)
+                        {
+                            deniedFiles.Add(file);
+                        }
                     }
                 }
             }
@@ -568,8 +579,9 @@ namespace linktool
         }
 
         /// <summary>
-        /// 检查 from 下是否有文件被占用（有程序正在读写）
-        /// 返回被占用的文件列表
+        /// 检查 from 下是否有文件被独占锁定（无法读取）
+        /// 返回被锁定的文件列表
+        /// 注意：仅检测真正无法读取的文件，不会因杀毒软件等正常读取而误报
         /// </summary>
         private static List<string> CheckFileLocks(string fromPath)
         {
@@ -580,17 +592,25 @@ namespace linktool
                 {
                     try
                     {
-                        // 尝试以独占写入模式打开，如果失败说明被占用
-                        using var fs = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-                    }
-                    catch (IOException)
-                    {
-                        lockedFiles.Add(file);
+                        // 使用 ReadWrite + Delete 共享模式尝试打开
+                        // 这比 FileShare.None 宽松得多，只有真正被独占锁定的文件才会失败
+                        using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                     }
                     catch (UnauthorizedAccessException)
                     {
-                        // 无权限也算占用
-                        lockedFiles.Add(file);
+                        // 无权限不算锁定，归入权限问题
+                    }
+                    catch (IOException ex)
+                    {
+                        // 检查是否是共享冲突（被独占锁定）
+                        var hresult = ex.HResult & 0xFFFF;
+                        // ERROR_SHARING_VIOLATION (32) = 文件被其他进程独占打开
+                        // ERROR_LOCK_VIOLATION (33) = 锁冲突
+                        if (hresult == 32 || hresult == 33)
+                        {
+                            lockedFiles.Add(file);
+                        }
+                        // 其他 IOException 不算锁定
                     }
                 }
             }
@@ -1128,6 +1148,101 @@ namespace linktool
 
                 MoveButton.IsEnabled = true;
                 MoveButton.Content = "移动";
+            }
+        }
+
+        /// <summary>
+        /// 使用终端执行按钮点击事件
+        /// 所有步骤使用可见终端命令操作：robocopy 复制 → rmdir 删除 → mklink /J 创建链接
+        /// </summary>
+        private async void TerminalMoveButton_Click(object sender, RoutedEventArgs e)
+        {
+            var fromPath = FromTextBox.Text.Trim();
+            var toPath = ToTextBox.Text.Trim();
+
+            // 基础验证
+            if (!ValidateMoveOperation(fromPath, toPath))
+                return;
+
+            var fromDirName = Path.GetFileName(fromPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            var destDir = Path.Combine(toPath, fromDirName);
+
+            // 检查目标位置是否已存在同名文件夹
+            if (Directory.Exists(destDir))
+            {
+                bool isDestEmpty;
+                try
+                {
+                    isDestEmpty = !Directory.EnumerateFileSystemEntries(destDir).Any();
+                }
+                catch
+                {
+                    isDestEmpty = false;
+                }
+
+                if (!isDestEmpty)
+                {
+                    MessageBox.Show(
+                        $"目标文件夹下已存在同名文件夹且包含内容，无法操作：\n{destDir}\n\n请先清空或删除该文件夹后重试。",
+                        "目标已存在",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            // 确认操作
+            var result = MessageBox.Show(
+                $"确定要使用终端执行移动操作吗？\n\n从：{fromPath}\n到：{destDir}\n\n将打开可见终端窗口执行：\n1. robocopy 复制文件\n2. rmdir 删除源文件夹\n3. mklink /J 创建目录链接",
+                "确认终端执行",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes) return;
+
+            TerminalMoveButton.IsEnabled = false;
+            TerminalMoveButton.Content = "执行中...";
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    // 构建批处理命令
+                    // 使用 & 链接命令，每步失败后暂停让用户看到错误
+                    var batchCmd = $"echo === LinkTool 终端执行 === & " +
+                        $"echo. & " +
+                        $"echo [1/3] 正在复制文件... & " +
+                        $"robocopy \"{fromPath}\" \"{destDir}\" /E /COPYALL /DCOPY:T /R:3 /W:5 & " +
+                        $"echo. & " +
+                        $"echo [2/3] 正在删除源文件夹... & " +
+                        $"rmdir /S /Q \"{fromPath}\" & " +
+                        $"echo. & " +
+                        $"echo [3/3] 正在创建目录链接... & " +
+                        $"mklink /J \"{fromPath}\" \"{destDir}\" & " +
+                        $"echo. & " +
+                        $"echo === 操作完成 === & " +
+                        $"pause";
+
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/k {batchCmd}",
+                        UseShellExecute = true,
+                        Verb = IsRunningAsAdmin() ? "" : "runas",
+                        CreateNoWindow = false
+                    };
+
+                    Process.Start(psi);
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"启动终端执行时出错：\n{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                TerminalMoveButton.IsEnabled = true;
+                TerminalMoveButton.Content = "使用终端执行";
             }
         }
 
