@@ -37,6 +37,8 @@
             <RowDefinition Height="8" />
             <!-- 提示标签行 -->
             <RowDefinition Height="Auto" />
+            <!-- 警告标签行 -->
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid.ColumnDefinitions>
@@ -142,10 +144,19 @@
         <!-- 提示标签 -->
         <TextBlock Grid.Row="12" Grid.ColumnSpan="2"
                    x:Name="TipText"
-                   Text="提示：移动操作会将源文件夹内容移动到目标位置；创建目录链接会在目标位置建立 Junction 链接指向源目录。"
+                   Text="提示：移动操作会将源文件夹内容移动到目标位置；然后在源目录创建目录链接(Junction) 指向目标目录，这不影响软件使用，使用旧的路径仍可操作目标文件。&#x0a;例如: from是 C:\test to是 D:\to 那么仍可使用 C:\test\xxx 操作 D:\to\test\xxx"
                    TextWrapping="Wrap"
                    FontSize="11"
                    Foreground="DarkGray"
+                   Margin="0,4,0,0" />
+
+        <!-- 警告标签 -->
+        <TextBlock Grid.Row="13" Grid.ColumnSpan="2"
+                   x:Name="WarningText"
+                   Text="警告：请不要移动任何系统关键目录和与驱动相关目录，这可能导致系统损坏！！！&#x0a;请谨慎移动带Microsoft字样的目录，可能导致部分微软的组件异常。&#x0a;请不要直接移动 C:\Users\用户名 目录，这可能导致用户账户登录异常。"
+                   TextWrapping="Wrap"
+                   FontSize="11"
+                   Foreground="#E6A800"
                    Margin="0,4,0,0" />
     </Grid>
 </Window>

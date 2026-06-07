@@ -30,11 +30,11 @@
 
 提供三个一键构建脚本：
 
-| 脚本 | 说明 | 输出位置 |
-|------|------|----------|
-| `build-debug.bat` | 调试版 | `bin\Debug\net8.0-windows\linktool.exe` |
-| `build-release.bat` | 发行版 | `bin\Release\net8.0-windows\linktool.exe` |
-| `build-singlefile.bat` | 单文件版（自包含运行时，无需安装 .NET） | `publish\linktool.exe` |
+| 脚本                     | 说明                     | 输出位置                                      |
+| ---------------------- | ---------------------- | ----------------------------------------- |
+| `build-debug.bat`      | 调试版                    | `bin\Debug\net8.0-windows\linktool.exe`   |
+| `build-release.bat`    | 发行版                    | `bin\Release\net8.0-windows\linktool.exe` |
+| `build-singlefile.bat` | 单文件版（自包含运行时，无需安装 .NET） | `publish\linktool.exe`                    |
 
 也可手动构建：
 
@@ -56,3 +56,7 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 3. 点击 "移动" 或 "使用终端执行"
 
 > 建议以管理员身份运行，可避免大部分权限不足问题。
+
+## 协议
+
+本软件使用 MIT 协议开源。

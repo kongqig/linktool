@@ -1,12 +1,11 @@
 @echo off
-chcp 65001 >nul
-echo ===== 构建发行版 =====
+echo ===== Build Release =====
 dotnet build "%~dp0linktool.csproj" -c Release
 if %errorlevel% neq 0 (
-    echo 构建失败！
+    echo Build failed!
     pause
     exit /b 1
 )
 echo.
-echo 发行版构建完成：bin\Release\net8.0-windows\linktool.exe
+echo Release build done: bin\Release\net8.0-windows\linktool.exe
 pause
