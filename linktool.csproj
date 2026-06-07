@@ -12,7 +12,7 @@
     <!-- 启用隐式using -->
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- 应用程序图标（可选） -->
-    <ApplicationIcon />
+    <ApplicationIcon>linktool.ico</ApplicationIcon>
     <!-- 生成单文件发布时包含本地库 -->
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>

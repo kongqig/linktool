@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Folder back -->
+  <path d="M28 68 L28 210 C28 216 33 221 39 221 L217 221 C223 221 228 216 228 210 L228 88 C228 82 223 77 217 77 L120 77 L104 57 L39 57 C33 57 28 62 28 68 Z" fill="#2B7CD3"/>
+  <!-- Folder front -->
+  <path d="M28 100 L28 210 C28 216 33 221 39 221 L217 221 C223 221 228 216 228 210 L228 100 Z" fill="#3A9BF4"/>
+  <!-- Folder tab highlight -->
+  <path d="M39 57 L104 57 L120 77 L39 77 C33 77 28 72 28 66 L28 68 C28 62 33 57 39 57 Z" fill="#1E5FA0"/>
+  <!-- Link arrow symbol -->
+  <g transform="translate(128, 155)">
+    <!-- Arrow shaft -->
+    <rect x="-50" y="-6" width="72" height="12" rx="3" fill="#FFFFFF" opacity="0.95"/>
+    <!-- Arrow head -->
+    <polygon points="18,-18 42,0 18,18" fill="#FFFFFF" opacity="0.95"/>
+    <!-- Chain link left -->
+    <rect x="-58" y="-14" width="16" height="28" rx="7" fill="none" stroke="#FFFFFF" stroke-width="4" opacity="0.95"/>
+    <!-- Chain link right (small, at arrow tip) -->
+    <circle cx="36" cy="0" r="6" fill="none" stroke="#FFFFFF" stroke-width="3" opacity="0.7"/>
+  </g>
+</svg>

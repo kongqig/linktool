@@ -6,6 +6,7 @@
         Height="400"
         ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
+        Icon="linktool.ico"
         FontSize="14"
         FontFamily="Microsoft YaHei, SimSun, Segoe UI">
 

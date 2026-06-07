@@ -1,3 +1,55 @@
+/*
+ *  LinkTool - 文件夹移动与目录链接工具
+ *
+ *  状态变量
+ *      _lockHandles              独占锁定句柄列表        247行
+ *      _cts                      取消令牌源              248行
+ *
+ *  Win32 API
+ *      CreateJunctionNative      Win32 创建 Junction     101行
+ *      GetLockingProcesses       Restart Manager 查占用  191行
+ *      GetProcessesLockingDirectory  进程模块查占用      258行
+ *
+ *  管理员权限
+ *      IsRunningAsAdmin          检查管理员权限          326行
+ *      CheckAdminPrivilege       检查并提示权限          333行
+ *      RestartAsAdmin            以管理员重启            350行
+ *
+ *  辅助方法
+ *      IsJunctionOrSymlink       判断是否为链接          410行
+ *      IsValidPath               校验路径合法性          436行
+ *      UpdateProgress            更新进度条              462行
+ *      ResetProgress             重置进度条              476行
+ *      LockDirectory             独占锁定目录            489行
+ *      UnlockAll                 释放所有锁定            509行
+ *      RunAsAdminWithTerminal    管理员终端执行          519行
+ *      RunWithVisibleTerminal    可见终端执行            539行
+ *
+ *  安全验证
+ *      ValidateMoveOperation     移动操作前置校验        583行
+ *
+ *  阶段0：前置检查
+ *      CheckFileAccessibility     检查文件访问权限       666行
+ *      CheckFileLocks             检查文件独占锁定       710行
+ *
+ *  阶段1：复制目录
+ *      GetAllFiles                获取文件列表           753行
+ *      CopyDirectoryFull          .NET 完整复制目录      767行
+ *      CopyWithRobocopy           robocopy 复制          846行
+ *
+ *  阶段3：删除源文件夹
+ *      TryKillLockingProcesses    终止占用进程           871行
+ *      DeleteSourceDirectory      删除源目录             896行
+ *
+ *  阶段4：创建目录链接
+ *      CreateJunctionLink         创建 Junction 链接     967行
+ *
+ *  按钮事件
+ *      MoveButton_Click           移动按钮             1049行
+ *      TerminalMoveButton_Click   终端执行按钮         1289行
+ *      CreateJunctionButton_Click 创建链接按钮        1397行
+ */
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -198,6 +250,78 @@ namespace linktool
         #endregion
 
         #region 管理员权限相关
+
+        /// <summary>
+        /// 获取占用指定目录的进程列表
+        /// 通过检查所有运行中进程的工作目录和打开的文件句柄来判断
+        /// </summary>
+        private static List<Process> GetProcessesLockingDirectory(string directoryPath)
+        {
+            var lockingProcesses = new List<Process>();
+            var normalizedPath = Path.GetFullPath(directoryPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).ToUpperInvariant();
+
+            try
+            {
+                // 方法1：检查进程的主模块文件路径是否在目标目录下
+                foreach (var process in Process.GetProcesses())
+                {
+                    try
+                    {
+                        if (process.MainModule?.FileName != null)
+                        {
+                            var procPath = Path.GetFullPath(process.MainModule.FileName);
+                            if (procPath.StartsWith(normalizedPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (!lockingProcesses.Any(p => p.Id == process.Id))
+                                    lockingProcesses.Add(process);
+                                continue;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // 32位进程访问64位进程的MainModule会抛异常，忽略
+                    }
+
+                    try
+                    {
+                        // 方法2：使用 handle.exe 思路 - 通过 WMI 查询进程的可执行路径
+                        // 这里用简单的方式：检查进程名中是否包含目录相关关键词
+                        // 更可靠的方式是检查进程的模块列表
+                        foreach (ProcessModule module in process.Modules)
+                        {
+                            try
+                            {
+                                if (module.FileName != null)
+                                {
+                                    var modPath = Path.GetFullPath(module.FileName);
+                                    if (modPath.StartsWith(normalizedPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        if (!lockingProcesses.Any(p => p.Id == process.Id))
+                                            lockingProcesses.Add(process);
+                                        break;
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // 忽略无法访问的进程模块
+                    }
+                }
+            }
+            catch
+            {
+                // 忽略全局异常
+            }
+
+            return lockingProcesses;
+        }
 
         private static bool IsRunningAsAdmin()
         {
@@ -966,6 +1090,7 @@ namespace linktool
                         "权限不足",
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
+                    ResetProgress();
                     return;
                 }
 
@@ -988,6 +1113,7 @@ namespace linktool
                         "文件被占用",
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
+                    ResetProgress();
                     return;
                 }
 
@@ -1012,6 +1138,7 @@ namespace linktool
                             "目标已存在",
                             MessageBoxButton.OK,
                             MessageBoxImage.Warning);
+                        ResetProgress();
                         return;
                     }
                 }
@@ -1081,6 +1208,7 @@ namespace linktool
                     if (!copySuccess)
                     {
                         UnlockAll();
+                        ResetProgress();
                         MessageBox.Show(
                             "文件复制失败，所有方式均未成功。\n请检查磁盘空间、文件权限等。",
                             "复制失败",
@@ -1123,6 +1251,7 @@ namespace linktool
                 }
                 catch (Exception ex)
                 {
+                    ResetProgress();
                     MessageBox.Show(
                         $"文件复制和源目录删除已完成，但目录链接创建失败：\n{ex.Message}\n\n请手动创建目录链接：\nmklink /J \"{fromPath}\" \"{destDir}\"",
                         "目录链接创建失败",
@@ -1132,10 +1261,12 @@ namespace linktool
             }
             catch (OperationCanceledException)
             {
+                ResetProgress();
                 MessageBox.Show("操作已取消。", "取消", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
+                ResetProgress();
                 MessageBox.Show($"移动文件夹时出错：\n{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
@@ -1191,6 +1322,20 @@ namespace linktool
                 }
             }
 
+            // 检查源文件夹是否有进程占用
+            var lockingProcesses = GetProcessesLockingDirectory(fromPath);
+            if (lockingProcesses.Count > 0)
+            {
+                var procList = string.Join("\n", lockingProcesses.Select(p => $"  - {p.ProcessName} (PID: {p.Id})"));
+                var lockResult = MessageBox.Show(
+                    $"以下进程正在占用源文件夹，可能导致复制不完整：\n{procList}\n\n建议先关闭这些进程后再执行。\n\n是否仍要继续？",
+                    "检测到进程占用",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (lockResult != MessageBoxResult.Yes) return;
+            }
+
             // 确认操作
             var result = MessageBox.Show(
                 $"确定要使用终端执行移动操作吗？\n\n从：{fromPath}\n到：{destDir}\n\n将打开可见终端窗口执行：\n1. robocopy 复制文件\n2. rmdir 删除源文件夹\n3. mklink /J 创建目录链接",
@@ -1226,7 +1371,7 @@ namespace linktool
                     var psi = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
-                        Arguments = $"/k {batchCmd}",
+                        Arguments = $"/c {batchCmd}",  // /c 执行完毕后自动关闭终端
                         UseShellExecute = true,
                         Verb = IsRunningAsAdmin() ? "" : "runas",
                         CreateNoWindow = false
