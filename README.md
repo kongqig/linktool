@@ -28,8 +28,25 @@
 
 ## 构建
 
+提供三个一键构建脚本：
+
+| 脚本 | 说明 | 输出位置 |
+|------|------|----------|
+| `build-debug.bat` | 调试版 | `bin\Debug\net8.0-windows\linktool.exe` |
+| `build-release.bat` | 发行版 | `bin\Release\net8.0-windows\linktool.exe` |
+| `build-singlefile.bat` | 单文件版（自包含运行时，无需安装 .NET） | `publish\linktool.exe` |
+
+也可手动构建：
+
 ```bash
-dotnet build
+# 调试版
+dotnet build -c Debug
+
+# 发行版
+dotnet build -c Release
+
+# 单文件版
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -o publish
 ```
 
 ## 使用
@@ -37,3 +54,5 @@ dotnet build
 1. 在 "From" 中选择要移动的文件夹
 2. 在 "To" 中选择目标位置
 3. 点击 "移动" 或 "使用终端执行"
+
+> 建议以管理员身份运行，可避免大部分权限不足问题。

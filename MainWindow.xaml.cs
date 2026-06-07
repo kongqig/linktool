@@ -2,52 +2,52 @@
  *  LinkTool - 文件夹移动与目录链接工具
  *
  *  状态变量
- *      _lockHandles              独占锁定句柄列表        247行
- *      _cts                      取消令牌源              248行
+ *  _lockHandles              独占锁定句柄列表
+ *  _cts                      取消令牌源
  *
  *  Win32 API
- *      CreateJunctionNative      Win32 创建 Junction     101行
- *      GetLockingProcesses       Restart Manager 查占用  191行
- *      GetProcessesLockingDirectory  进程模块查占用      258行
+ *  CreateJunctionNative      Win32 创建 Junction
+ *  GetLockingProcesses       Restart Manager 查占用
+ *  GetProcessesLockingDirectory  进程模块查占用
  *
  *  管理员权限
- *      IsRunningAsAdmin          检查管理员权限          326行
- *      CheckAdminPrivilege       检查并提示权限          333行
- *      RestartAsAdmin            以管理员重启            350行
+ *  IsRunningAsAdmin          检查管理员权限
+ *  CheckAdminPrivilege       检查并提示权限
+ *  RestartAsAdmin            以管理员重启
  *
  *  辅助方法
- *      IsJunctionOrSymlink       判断是否为链接          410行
- *      IsValidPath               校验路径合法性          436行
- *      UpdateProgress            更新进度条              462行
- *      ResetProgress             重置进度条              476行
- *      LockDirectory             独占锁定目录            489行
- *      UnlockAll                 释放所有锁定            509行
- *      RunAsAdminWithTerminal    管理员终端执行          519行
- *      RunWithVisibleTerminal    可见终端执行            539行
+ *  IsJunctionOrSymlink       判断是否为链接
+ *  IsValidPath               校验路径合法性
+ *  UpdateProgress            更新进度条
+ *  ResetProgress             重置进度条
+ *  LockDirectory             独占锁定目录
+ *  UnlockAll                 释放所有锁定
+ *  RunAsAdminWithTerminal    管理员终端执行
+ *  RunWithVisibleTerminal    可见终端执行
  *
  *  安全验证
- *      ValidateMoveOperation     移动操作前置校验        583行
+ *  ValidateMoveOperation     移动操作前置校验
  *
  *  阶段0：前置检查
- *      CheckFileAccessibility     检查文件访问权限       666行
- *      CheckFileLocks             检查文件独占锁定       710行
+ *  CheckFileAccessibility     检查文件访问权限
+ *  CheckFileLocks             检查文件独占锁定
  *
  *  阶段1：复制目录
- *      GetAllFiles                获取文件列表           753行
- *      CopyDirectoryFull          .NET 完整复制目录      767行
- *      CopyWithRobocopy           robocopy 复制          846行
+ *  GetAllFiles                获取文件列表
+ *  CopyDirectoryFull          .NET 完整复制目录
+ *  CopyWithRobocopy           robocopy 复制
  *
  *  阶段3：删除源文件夹
- *      TryKillLockingProcesses    终止占用进程           871行
- *      DeleteSourceDirectory      删除源目录             896行
+ *  TryKillLockingProcesses    终止占用进程
+ *  DeleteSourceDirectory      删除源目录
  *
  *  阶段4：创建目录链接
- *      CreateJunctionLink         创建 Junction 链接     967行
+ *      CreateJunctionLink         创建 Junction 链接
  *
  *  按钮事件
- *      MoveButton_Click           移动按钮             1049行
- *      TerminalMoveButton_Click   终端执行按钮         1289行
- *      CreateJunctionButton_Click 创建链接按钮        1397行
+ *  MoveButton_Click           移动按钮
+ *  TerminalMoveButton_Click   终端执行按钮
+ *  CreateJunctionButton_Click 创建链接按钮
  */
 
 using System;
@@ -239,7 +239,27 @@ namespace linktool
         public MainWindow()
         {
             InitializeComponent();
+            LoadIcon();
             CheckAdminPrivilege();
+        }
+
+        /// <summary>
+        /// 从当前 exe 加载窗口图标
+        /// </summary>
+        private void LoadIcon()
+        {
+            try
+            {
+                var exePath = Environment.ProcessPath;
+                if (exePath != null)
+                {
+                    using var icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                    if (icon != null)
+                        Icon = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                            icon.Handle, Int32Rect.Empty, System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                }
+            }
+            catch { /* 图标加载失败不影响启动 */ }
         }
 
         #region 状态变量
