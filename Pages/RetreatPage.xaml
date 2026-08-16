@@ -1,0 +1,62 @@
+<UserControl x:Class="linktool.Pages.RetreatPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+
+            <!-- 主操作卡 -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="退迁" Style="{StaticResource SectionTitle}"/>
+                    <TextBlock Text="把已迁移（Junction 链接）的目录内容移回原路径并删除链接，恢复迁移前的状态。" Style="{StaticResource Hint}" Margin="0,4,0,20"/>
+
+                    <!-- 链接路径 -->
+                    <TextBlock Text="迁移后的链接路径（Link）" Style="{StaticResource Label}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="LinkBox" Grid.Column="0" Style="{StaticResource PathComboBox}" IsEditable="True"
+                                  ToolTip="迁移后位于原路径的 Junction 链接" KeyDown="Path_KeyDown" KeyUp="LinkBox_KeyUp"/>
+                        <Button Grid.Column="1" Content="选择" Style="{StaticResource SecondaryButton}" Width="80" Margin="10,0,0,0"
+                                ToolTip="选择迁移后的链接路径" Click="LinkBrowseButton_Click"/>
+                    </Grid>
+
+                    <!-- 解析出的目标 -->
+                    <TextBlock Text="将退迁回此链接的目标路径" Style="{StaticResource Label}" Margin="0,16,0,6"/>
+                    <Border Background="{StaticResource HoverBrush}" CornerRadius="8" Padding="10,8">
+                        <TextBlock x:Name="TargetText" Text="（输入链接路径后自动解析）" Style="{StaticResource Hint}" TextWrapping="Wrap"/>
+                    </Border>
+
+                    <!-- 操作 -->
+                    <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
+                        <Button x:Name="RetreatButton" Content="退迁" Style="{StaticResource PrimaryButton}" Width="120"
+                                ToolTip="将目标内容移回链接路径并删除链接与旧目标" Click="RetreatButton_Click"/>
+                    </StackPanel>
+
+                    <!-- 进度 -->
+                    <Grid Margin="0,18,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ProgressCountText" Text="0/0" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <ProgressBar x:Name="ProgressBar" Grid.Column="1" Style="{StaticResource ProgressBarStyle}" Margin="12,2,0,0"/>
+                    </Grid>
+                    <TextBlock x:Name="CurrentFileText" Text="" Style="{StaticResource Hint}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="StatusText" Style="{StaticResource Hint}" Margin="0,10,0,0" Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 说明卡 -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="说明" Style="{StaticResource SectionTitle}" FontSize="15"/>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                               Text="· 仅对迁移后生成的目录链接（Junction）有效。&#x0a;· 退迁会：解析链接目标 → 复制回原路径 → 删除链接 → 删除旧目标。&#x0a;· 复制的目标容量与迁移时相同，请预留足够磁盘空间。"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

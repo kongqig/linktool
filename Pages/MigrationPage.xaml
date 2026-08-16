@@ -1,0 +1,76 @@
+<UserControl x:Class="linktool.Pages.MigrationPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+
+            <!-- 主操作卡 -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="迁移" Style="{StaticResource SectionTitle}"/>
+                    <TextBlock Text="将文件夹移动到目标位置，并在原路径创建目录链接，原路径仍可正常访问。" Style="{StaticResource Hint}" Margin="0,4,0,20"/>
+
+                    <!-- From -->
+                    <TextBlock Text="源文件夹（From）" Style="{StaticResource Label}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="FromBox" Grid.Column="0" Style="{StaticResource PathComboBox}" IsEditable="True"
+                                  ToolTip="选择要迁移的文件夹" KeyDown="Path_KeyDown"/>
+                        <Button Grid.Column="1" Content="选择" Style="{StaticResource SecondaryButton}" Width="80" Margin="10,0,0,0"
+                                ToolTip="从文件夹对话框中选取源文件夹" Click="FromBrowseButton_Click"/>
+                    </Grid>
+
+                    <!-- To -->
+                    <TextBlock Text="目标文件夹（To）" Style="{StaticResource Label}" Margin="0,16,0,6"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="ToBox" Grid.Column="0" Style="{StaticResource PathComboBox}" IsEditable="True"
+                                  ToolTip="选择目标文件夹，源文件夹会被移动到其下" KeyDown="Path_KeyDown"/>
+                        <Button Grid.Column="1" Content="选择" Style="{StaticResource SecondaryButton}" Width="80" Margin="10,0,0,0"
+                                ToolTip="从文件夹对话框中选取目标文件夹" Click="ToBrowseButton_Click"/>
+                    </Grid>
+
+                    <!-- 操作按钮 -->
+                    <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
+                        <Button x:Name="MoveButton" Content="迁移" Style="{StaticResource PrimaryButton}" Width="120"
+                                ToolTip="复制文件 → 删除源 → 创建目录链接" Click="MoveButton_Click"/>
+                        <Button x:Name="TerminalButton" Content="使用终端执行" Style="{StaticResource SecondaryButton}" Width="140" Margin="12,0,0,0"
+                                ToolTip="在可见终端中依次执行 robocopy / rmdir / mklink，便于排查命令错误" Click="TerminalMoveButton_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 进度卡 -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="进度" Style="{StaticResource SectionTitle}" FontSize="15"/>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ProgressCountText" Text="0/0" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <ProgressBar x:Name="ProgressBar" Grid.Column="1" Style="{StaticResource ProgressBarStyle}" Margin="12,2,0,0"/>
+                    </Grid>
+                    <TextBlock x:Name="CurrentFileText" Text="" Style="{StaticResource Hint}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 安全警告卡 -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0" Background="{StaticResource WarnSoftBrush}"
+                    BorderBrush="{StaticResource WarnBrush}">
+                <StackPanel>
+                    <TextBlock Text="安全警告" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource WarnBrush}"/>
+                    <TextBlock Style="{StaticResource Hint}" Foreground="{StaticResource WarnBrush}" Margin="0,6,0,0"
+                               Text="请勿迁移系统关键目录、驱动相关目录，可能导致系统损坏。&#x0a;谨慎迁移含 “Microsoft” 字样的目录，可能导致部分微软组件异常。&#x0a;请勿直接迁移 C:\Users\用户名 目录，可能导致用户账户登录异常。"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

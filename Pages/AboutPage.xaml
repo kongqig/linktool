@@ -1,0 +1,17 @@
+<UserControl x:Class="linktool.Pages.AboutPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <Border Style="{StaticResource Card}">
+            <StackPanel HorizontalAlignment="Left">
+                <TextBlock Text="LinkTool" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock x:Name="VersionText" Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                <TextBlock Style="{StaticResource Hint}" Margin="0,14,0,0"
+                           Text="文件夹迁移与目录链接工具。&#x0a;将文件夹移动到其他位置，并在原路径创建 Junction 目录链接，使程序仍能通过原路径访问。" />
+                <Separator Margin="0,18,0,18" Background="{StaticResource BorderBrush}"/>
+                <TextBlock Style="{StaticResource Hint}" Text="技术栈：.NET 8 / WPF / Win32 API / robocopy / mklink"/>
+                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" Text="开源协议：MIT"/>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

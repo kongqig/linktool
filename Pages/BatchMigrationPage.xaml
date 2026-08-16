@@ -1,0 +1,116 @@
+<UserControl x:Class="linktool.Pages.BatchMigrationPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+
+            <!-- 标题与说明 -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="批量迁移" Style="{StaticResource SectionTitle}"/>
+                    <TextBlock Text="将多个文件夹批量移动到目标位置，并在原路径创建目录链接。支持多对一（共用通用目标目录）与多对多（每行单独指定目标）。"
+                               Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 通用目标目录 -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="通用目标目录（To）" Style="{StaticResource Label}"/>
+                    <TextBlock Text="留空时，每行必须单独填写 To；填写后，未填写 To 的行将迁移到该目录下。" Style="{StaticResource Hint}" Margin="0,0,0,8"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="CommonToBox" Grid.Column="0" Style="{StaticResource PathComboBox}" IsEditable="True"
+                                  ToolTip="通用目标目录，未单独指定 To 的行将迁移到其下" KeyDown="CommonTo_KeyDown"/>
+                        <Button Grid.Column="1" Content="选择" Style="{StaticResource SecondaryButton}" Width="80" Margin="10,0,0,0"
+                                ToolTip="从文件夹对话框中选取通用目标目录" Click="CommonToBrowse_Click"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- 粘贴添加 -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="粘贴添加（每行一个源文件夹）" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="PasteBox" Style="{StaticResource TextBoxStyle}" AcceptsReturn="True"
+                             TextWrapping="Wrap" Height="90" VerticalScrollBarVisibility="Auto"
+                             VerticalContentAlignment="Top"
+                             ToolTip="每行一个源文件夹路径"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button x:Name="AddButton" Content="添加" Style="{StaticResource PrimaryButton}" Width="120" Click="AddPaste_Click"
+                                ToolTip="将编辑框中的每行路径作为一个源文件夹加入列表"/>
+                        <Button x:Name="BrowseButton" Content="选择" Style="{StaticResource SecondaryButton}" Width="120" Margin="12,0,0,0" Click="BrowseButton_Click"
+                                ToolTip="从文件夹对话框选取一个源文件夹加入列表"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                               Text="支持一次粘贴多行路径，或点击“选择”，或直接从资源管理器拖入文件夹。"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 行列表 -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="迁移列表" Style="{StaticResource Label}"/>
+                    <DataGrid x:Name="Grid" AutoGenerateColumns="False" IsReadOnly="False"
+                              SelectionMode="Extended" SelectionUnit="FullRow"
+                              AllowDrop="True" PreviewDragOver="Grid_PreviewDragOver" PreviewDrop="Grid_PreviewDrop"
+                              HeadersVisibility="Column" GridLinesVisibility="None"
+                              CanUserAddRows="False" CanUserDeleteRows="False"
+                              Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                              RowBackground="White" AlternatingRowBackground="{StaticResource HoverBrush}"
+                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                              MinHeight="220" Margin="0,0,0,12">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="From（源文件夹）" Binding="{Binding From, UpdateSourceTrigger=PropertyChanged}" Width="300"/>
+                            <DataGridTextColumn Header="To（目标，可留空）" Binding="{Binding To, UpdateSourceTrigger=PropertyChanged}" Width="300"/>
+                            <DataGridTemplateColumn Header="状态" Width="Auto">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource WarnBrush}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsSuccess}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- 底部操作与进度 -->
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="RemoveButton" Content="移除选中" Style="{StaticResource SecondaryButton}" Click="RemoveSelected_Click"/>
+                        <Button x:Name="ClearButton" Content="清空" Style="{StaticResource SecondaryButton}" Margin="12,0,0,0" Click="Clear_Click"/>
+                        <Button x:Name="StartButton" Content="开始批量迁移" Style="{StaticResource PrimaryButton}" Margin="12,0,0,0" Width="160" Click="Start_Click"/>
+                    </StackPanel>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ProgressCountText" Text="0/0" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <ProgressBar x:Name="ProgressBar" Grid.Column="1" Style="{StaticResource ProgressBarStyle}" Margin="12,2,0,0"/>
+                    </Grid>
+                    <TextBlock x:Name="CurrentFileText" Text="" Style="{StaticResource Hint}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

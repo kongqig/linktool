@@ -1,162 +1,92 @@
 <Window x:Class="linktool.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="LinkTool - 文件夹移动工具"
-        Width="640"
-        Height="400"
-        ResizeMode="CanMinimize"
+        Title="LinkTool - 文件夹迁移与链接"
+        Width="1020"
+        Height="680"
+        MinWidth="860"
+        MinHeight="560"
+        ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterScreen"
         FontSize="14"
-        FontFamily="Microsoft YaHei, SimSun, Segoe UI">
+        FontFamily="Segoe UI, Microsoft YaHei"
+        Background="{StaticResource WindowBgBrush}">
 
-    <Grid Margin="16">
-        <Grid.RowDefinitions>
-            <!-- From 标签行 -->
-            <RowDefinition Height="Auto" />
-            <!-- From 编辑框 + 选择按钮行 -->
-            <RowDefinition Height="Auto" />
-            <!-- 间距 -->
-            <RowDefinition Height="12" />
-            <!-- To 标签行 -->
-            <RowDefinition Height="Auto" />
-            <!-- To 编辑框 + 选择按钮行 -->
-            <RowDefinition Height="Auto" />
-            <!-- 间距 -->
-            <RowDefinition Height="16" />
-            <!-- 底部按钮行 -->
-            <RowDefinition Height="Auto" />
-            <!-- 间距 -->
-            <RowDefinition Height="12" />
-            <!-- 进度计数行 -->
-            <RowDefinition Height="Auto" />
-            <!-- 进度条行 -->
-            <RowDefinition Height="Auto" />
-            <!-- 当前文件行 -->
-            <RowDefinition Height="Auto" />
-            <!-- 间距 -->
-            <RowDefinition Height="8" />
-            <!-- 提示标签行 -->
-            <RowDefinition Height="Auto" />
-            <!-- 警告标签行 -->
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-
+    <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- From 标签 -->
-        <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
-                   Text="From（选择要移动的文件夹）："
-                   Margin="0,0,0,4" />
+        <!-- ===== 侧边栏 ===== -->
+        <Border Grid.Column="0" Background="{StaticResource SidebarBgBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+            <DockPanel>
+                <!-- 品牌区 -->
+                <StackPanel DockPanel.Dock="Top" Margin="20,24,20,20">
+                    <TextBlock Text="LinkTool" FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="文件夹迁移与目录链接" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                </StackPanel>
 
-        <!-- From 编辑框 -->
-        <TextBox Grid.Row="1" Grid.Column="0"
-                 x:Name="FromTextBox"
-                 Margin="0,0,8,0"
-                 VerticalContentAlignment="Center"
-                 Padding="4,0" />
+                <!-- 管理员状态 -->
+                <StackPanel DockPanel.Dock="Bottom" Margin="16" VerticalAlignment="Bottom">
+                    <Border CornerRadius="8" Background="{StaticResource HoverBrush}" Padding="12,10">
+                        <StackPanel>
+                            <TextBlock x:Name="AdminStatusText" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                            <Button x:Name="AdminRestartButton" Content="以管理员身份运行"
+                                    Style="{StaticResource SecondaryButton}" Padding="8,6" Margin="0,8,0,0"
+                                    HorizontalAlignment="Stretch" Click="AdminRestartButton_Click"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
 
-        <!-- From 选择按钮 -->
-        <Button Grid.Row="1" Grid.Column="1"
-                x:Name="FromBrowseButton"
-                Content="选择"
-                Width="80"
-                Click="FromBrowseButton_Click" />
+                <!-- 导航 -->
+                <StackPanel Margin="12,8">
+                    <RadioButton x:Name="NavMigration" GroupName="Nav" Style="{StaticResource NavRadioStyle}"
+                                 Content="迁移" Tag="migration" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavBatchMigration" GroupName="Nav" Style="{StaticResource NavRadioStyle}"
+                                 Content="批量迁移" Tag="batch-migration" Checked="Nav_Checked"/>
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavRadioStyle}"
+                                 Content="链接" Tag="link" Checked="Nav_Checked"/>
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavRadioStyle}"
+                                 Content="批量链接" Tag="batch-link" Checked="Nav_Checked"/>
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavRadioStyle}"
+                                 Content="退迁" Tag="retreat" Checked="Nav_Checked"/>
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavRadioStyle}"
+                                 Content="批量退迁" Tag="batch-retreat" Checked="Nav_Checked"/>
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavRadioStyle}"
+                                 Content="帮助" Tag="help" Checked="Nav_Checked"/>
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavRadioStyle}"
+                                 Content="关于" Tag="about" Checked="Nav_Checked"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
 
-        <!-- To 标签 -->
-        <TextBlock Grid.Row="3" Grid.ColumnSpan="2"
-                   Text="To（目标文件夹）："
-                   Margin="0,0,0,4" />
+        <!-- ===== 内容区 ===== -->
+        <Grid Grid.Column="1" Margin="28,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <!-- To 编辑框 -->
-        <TextBox Grid.Row="4" Grid.Column="0"
-                 x:Name="ToTextBox"
-                 Margin="0,0,8,0"
-                 VerticalContentAlignment="Center"
-                 Padding="4,0" />
+            <!-- 页面容器 -->
+            <ContentControl x:Name="PageHost" Grid.Row="0"/>
 
-        <!-- To 选择按钮 -->
-        <Button Grid.Row="4" Grid.Column="1"
-                x:Name="ToBrowseButton"
-                Content="选择"
-                Width="80"
-                Click="ToBrowseButton_Click" />
-
-        <!-- 底部按钮区域 -->
-        <StackPanel Grid.Row="6" Grid.ColumnSpan="2"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Center">
-            <!-- 以管理员身份运行按钮 -->
-            <Button x:Name="RunAsAdminButton"
-                    Content="以管理员身份运行"
-                    Width="160"
-                    Margin="0,0,16,0"
-                    Click="RunAsAdminButton_Click" />
-
-            <!-- 移动按钮 -->
-            <Button x:Name="MoveButton"
-                    Content="移动"
-                    Width="80"
-                    Margin="0,0,8,0"
-                    Click="MoveButton_Click" />
-
-            <!-- 使用终端执行按钮 -->
-            <Button x:Name="TerminalMoveButton"
-                    Content="使用终端执行"
-                    Width="120"
-                    Margin="0,0,8,0"
-                    Click="TerminalMoveButton_Click" />
-
-            <!-- 创建目录链接按钮 -->
-            <Button x:Name="CreateJunctionButton"
-                    Content="创建目录链接"
-                    Width="120"
-                    Click="CreateJunctionButton_Click" />
-        </StackPanel>
-
-        <!-- 进度计数 -->
-        <TextBlock Grid.Row="8" Grid.ColumnSpan="2"
-                   x:Name="ProgressCountText"
-                   Text="0/0"
-                   HorizontalAlignment="Center"
-                   FontSize="12"
-                   Foreground="Gray" />
-
-        <!-- 进度条 -->
-        <ProgressBar Grid.Row="9" Grid.ColumnSpan="2"
-                     x:Name="ProgressBar"
-                     Height="18"
-                     Minimum="0"
-                     Maximum="100"
-                     Value="0" />
-
-        <!-- 当前文件 -->
-        <TextBlock Grid.Row="10" Grid.ColumnSpan="2"
-                   x:Name="CurrentFileText"
-                   Text=""
-                   TextTrimming="CharacterEllipsis"
-                   FontSize="12"
-                   Foreground="Gray"
-                   Margin="0,2,0,0" />
-
-        <!-- 提示标签 -->
-        <TextBlock Grid.Row="12" Grid.ColumnSpan="2"
-                   x:Name="TipText"
-                   Text="提示：移动操作会将源文件夹内容移动到目标位置；然后在源目录创建目录链接(Junction) 指向目标目录，这不影响软件使用，使用旧的路径仍可操作目标文件。&#x0a;例如: from是 C:\test to是 D:\to 那么仍可使用 C:\test\xxx 操作 D:\to\test\xxx"
-                   TextWrapping="Wrap"
-                   FontSize="11"
-                   Foreground="DarkGray"
-                   Margin="0,4,0,0" />
-
-        <!-- 警告标签 -->
-        <TextBlock Grid.Row="13" Grid.ColumnSpan="2"
-                   x:Name="WarningText"
-                   Text="警告：请不要移动任何系统关键目录和与驱动相关目录，这可能导致系统损坏！！！&#x0a;请谨慎移动带Microsoft字样的目录，可能导致部分微软的组件异常。&#x0a;请不要直接移动 C:\Users\用户名 目录，这可能导致用户账户登录异常。"
-                   TextWrapping="Wrap"
-                   FontSize="11"
-                   Foreground="#E6A800"
-                   Margin="0,4,0,0" />
+            <!-- 管理员警告条（仅非管理员时显示） -->
+            <Border x:Name="AdminWarningBar" Grid.Row="1" Margin="0,16,0,0"
+                    Background="{StaticResource WarnSoftBrush}" BorderBrush="{StaticResource WarnBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="14,10" Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="当前未以管理员身份运行，部分复制/删除/链接操作可能因权限不足失败。建议提权运行。"
+                               Foreground="{StaticResource WarnBrush}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                    <Button Grid.Column="1" Content="提权运行" Style="{StaticResource SecondaryButton}"
+                            Padding="14,6" Margin="12,0,0,0" Click="AdminRestartButton_Click"/>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

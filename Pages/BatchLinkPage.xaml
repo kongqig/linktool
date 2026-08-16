@@ -1,0 +1,91 @@
+<UserControl x:Class="linktool.Pages.BatchLinkPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:linktool.Pages">
+    <UserControl.Resources>
+        <!-- 状态颜色转换器：按状态文本返回对应画刷 -->
+        <local:StatusBrushConverter x:Key="StatusBrushConverter"/>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+
+            <!-- 批量链接主卡 -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="批量链接" Style="{StaticResource SectionTitle}"/>
+                    <TextBlock Text="为一批目标文件夹创建 Junction 链接。每行填入目标路径；链接目录可留空，留空时链接创建到通用链接位置下（均与目标同名）。" Style="{StaticResource Hint}" Margin="0,4,0,20"/>
+
+                    <!-- 通用链接位置（默认目录） -->
+                    <TextBlock Text="通用链接位置（默认目录）" Style="{StaticResource Label}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="CommonLinkBox" Grid.Column="0" Style="{StaticResource PathComboBox}" IsEditable="True"
+                                  ToolTip="未填写链接目录的行的链接将创建到 该目录\目标文件夹名 下"/>
+                        <Button Grid.Column="1" Content="选择" Style="{StaticResource SecondaryButton}" Width="80" Margin="10,0,0,0"
+                                ToolTip="选择通用链接位置（默认目录）" Click="CommonLinkBrowseButton_Click"/>
+                    </Grid>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                               Text="每行的链接都在某个目录下创建，且与目标文件夹同名。未填“链接目录”的行用通用链接位置；已填行的链接则在该目录下创建。"/>
+
+                    <!-- 粘贴添加（目标路径） -->
+                    <TextBlock Text="粘贴添加（每行一个目标路径）" Style="{StaticResource Label}" Margin="0,16,0,6"/>
+                    <TextBox x:Name="PasteBox" Style="{StaticResource TextBoxStyle}"
+                             AcceptsReturn="True" TextWrapping="Wrap" Height="80"
+                             VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+                             ToolTip="每行一个目标路径"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button x:Name="AddButton" Content="添加" Style="{StaticResource PrimaryButton}" Width="120" Click="AddButton_Click"
+                                ToolTip="将编辑框中的每行路径填入目标路径列"/>
+                        <Button x:Name="BrowseButton" Content="选择" Style="{StaticResource SecondaryButton}" Width="120" Margin="12,0,0,0" Click="BrowseButton_Click"
+                                ToolTip="从文件夹对话框选取一个目标路径加入列表"/>
+                    </StackPanel>
+                    <TextBlock Text="支持一次粘贴多行目标路径，或点击“选择”，或拖入文件夹。链接目录可留空，留空则用通用链接位置。" Style="{StaticResource Hint}" Margin="0,6,0,0"/>
+
+                    <!-- 行列表 -->
+                    <TextBlock Text="链接列表" Style="{StaticResource Label}" Margin="0,16,0,6"/>
+                    <DataGrid x:Name="RowGrid" Height="280" AllowDrop="True"
+                              AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                              HeadersVisibility="Column" GridLinesVisibility="None"
+                              Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                              RowHeight="34" SelectionMode="Extended"
+                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                              PreviewDragOver="RowGrid_PreviewDragOver" PreviewDrop="RowGrid_PreviewDrop">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="链接目录（可留空）" Binding="{Binding LinkPath}" Width="300"/>
+                            <DataGridTextColumn Header="目标路径" Binding="{Binding Target}" Width="300"/>
+                            <DataGridTemplateColumn Header="状态" Width="Auto">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
+                                                   Foreground="{Binding Status, Converter={StaticResource StatusBrushConverter}}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- 底部操作与进度 -->
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <Button x:Name="RemoveButton" Content="移除选中" Style="{StaticResource SecondaryButton}" Width="100"
+                                ToolTip="从列表中移除选中的行" Click="RemoveButton_Click"/>
+                        <Button x:Name="ClearButton" Content="清空" Style="{StaticResource SecondaryButton}" Width="80" Margin="10,0,0,0"
+                                ToolTip="清空全部列表" Click="ClearButton_Click"/>
+                        <Button x:Name="StartButton" Content="开始批量链接" Style="{StaticResource PrimaryButton}" Width="150" Margin="10,0,0,0"
+                                ToolTip="逐行创建 Junction 目录链接" Click="StartButton_Click"/>
+                    </StackPanel>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ProgressCountText" Text="0/0" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                        <ProgressBar x:Name="ProgressBar" Grid.Column="1" Style="{StaticResource ProgressBarStyle}" Margin="12,0,0,0"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
