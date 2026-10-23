@@ -7,6 +7,9 @@ using System.Runtime.InteropServices;
 
 namespace linktool.Services
 {
+    /// <summary>目录综合扫描结果：权限、占用、大小、链接子目录（一次遍历产出）</summary>
+    public sealed record ScanResult(List<string> Denied, List<string> Locked, long TotalBytes, int FileCount, List<string> ReparseDirs);
+
     /// <summary>
     /// 文件占用/访问权限检测。
     /// 含 Restart Manager 精确占用检测与进程模块枚举降级检测。
@@ -136,16 +139,25 @@ namespace linktool.Services
         }
 
         /// <summary>
-        /// 检查 from 下所有文件的访问权限，返回无权限文件列表（空=全部可访问）。
-        /// 用 FileShare.ReadWrite|Delete 避免正常读取误报。
+        /// 综合扫描目录：访问权限、独占锁定、总大小、文件数、内部链接子目录。
+        /// 枚举递归时跳过 ReparsePoint 条目——源内部的 Junction/符号链接不会被跟随，
+        /// 既不会把链接目标的内容统计/复制进来，也不会因循环链接（如 link → 祖先目录）陷入无限递归。
+        /// 权限不足( UnauthorizedAccessException )记入 Denied，
+        /// 共享冲突(32/33) 记入 Locked，其余 IO 错误记入 Denied。
         /// </summary>
-        public static List<string> CheckFileAccessibility(string fromPath)
+        public static ScanResult ScanDirectory(string path)
         {
             var denied = new List<string>();
+            var locked = new List<string>();
+            var reparseDirs = FindReparseSubDirs(path);
+            long bytes = 0;
+            var count = 0;
             try
             {
-                foreach (var file in Directory.EnumerateFiles(fromPath, "*", SearchOption.AllDirectories))
+                foreach (var file in Directory.EnumerateFiles(path, "*", EnumerationOptionsSkipReparse))
                 {
+                    count++;
+                    try { bytes += new FileInfo(file).Length; } catch { }
                     try
                     {
                         using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
@@ -154,47 +166,59 @@ namespace linktool.Services
                     {
                         denied.Add(file);
                     }
-                    catch (IOException)
+                    catch (IOException ex)
                     {
-                        var errorCode = Marshal.GetHRForLastWin32Error();
-                        // 共享/锁冲突不算不可访问
-                        if (errorCode != unchecked((int)0x80070020) && errorCode != unchecked((int)0x80070021))
+                        var hresult = ex.HResult & 0xFFFF;
+                        if (hresult == 32 || hresult == 33)
+                            locked.Add(file);
+                        else
                             denied.Add(file);
                     }
                 }
             }
             catch (UnauthorizedAccessException)
             {
-                denied.Add(fromPath + " (无法枚举目录内容)");
+                denied.Add(path + " (无法枚举目录内容)");
             }
-            return denied;
+            return new ScanResult(denied, locked, bytes, count, reparseDirs);
         }
 
-        /// <summary>
-        /// 检查 from 下被独占锁定的文件列表（仅共享冲突 32/33 判定为锁定）。
-        /// </summary>
-        public static List<string> CheckFileLocks(string fromPath)
+        /// <summary>递归枚举统一选项：跟随子目录，但跳过 ReparsePoint（防循环、防跟出源外）</summary>
+        internal static EnumerationOptions EnumerationOptionsSkipReparse => new()
         {
-            var locked = new List<string>();
-            try
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = false,
+            AttributesToSkip = FileAttributes.ReparsePoint
+        };
+
+        /// <summary>
+        /// 环安全地找出目录下所有链接子目录（不递归进入链接本身）。
+        /// </summary>
+        public static List<string> FindReparseSubDirs(string rootPath)
+        {
+            var result = new List<string>();
+            var stack = new Stack<string>();
+            stack.Push(rootPath);
+            while (stack.Count > 0)
             {
-                foreach (var file in Directory.EnumerateFiles(fromPath, "*", SearchOption.AllDirectories))
+                string dir;
+                try { dir = stack.Pop(); } catch { continue; }
+                IEnumerable<string> children;
+                try { children = Directory.EnumerateDirectories(dir); }
+                catch { continue; }
+                foreach (var child in children)
                 {
                     try
                     {
-                        using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                        if (new DirectoryInfo(child).Attributes.HasFlag(FileAttributes.ReparsePoint))
+                            result.Add(child); // 链接本身记录，但不入栈（不跟随，天然防环）
+                        else
+                            stack.Push(child);
                     }
-                    catch (UnauthorizedAccessException) { }
-                    catch (IOException ex)
-                    {
-                        var hresult = ex.HResult & 0xFFFF;
-                        if (hresult == 32 || hresult == 33)
-                            locked.Add(file);
-                    }
+                    catch { }
                 }
             }
-            catch (UnauthorizedAccessException) { }
-            return locked;
+            return result;
         }
     }
 }

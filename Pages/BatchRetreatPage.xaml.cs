@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,6 +20,8 @@ namespace linktool.Pages
     public partial class BatchRetreatPage : UserControl
     {
         private readonly ObservableCollection<BatchRetreatRow> _rows = new();
+        private bool _running; // 是否正在批量处理
+        private bool _calcRunning; // 计算全部运行中
 
         public BatchRetreatPage()
         {
@@ -27,21 +30,89 @@ namespace linktool.Pages
         }
 
         // ---- 添加 ----
+        /// <summary>粘贴添加：换行分行，每行取第1列作为链接路径；引号段自动提取；无效路径标红</summary>
         private void AddButton_Click(object sender, RoutedEventArgs e)
         {
-            var text = PasteBox.Text ?? "";
-            foreach (var line in text.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
+            var lines = PastePathParser.Parse(PasteBox.Text ?? "");
+            if (lines.Count == 0) return;
+
+            var added = 0;
+            foreach (var line in lines)
             {
-                var p = line.Trim();
-                if (p.Length > 0) _rows.Add(new BatchRetreatRow(p));
+                if (_rows.Any(r => string.Equals(r.LinkPath?.Trim(), line.Col1, StringComparison.OrdinalIgnoreCase)))
+                    continue; // 去重
+
+                var row = new BatchRetreatRow(line.Col1);
+                if (!Directory.Exists(line.Col1))
+                {
+                    row.IsInvalid = true;
+                    row.Status = "路径不存在";
+                }
+                _rows.Add(row);
+                added++;
             }
-            PasteBox.Clear();
+            if (added > 0)
+                PasteBox.Clear();
         }
 
         private void BrowseButton_Click(object sender, RoutedEventArgs e)
         {
             var path = PathHistoryHelper.Browse("选择迁移后的链接路径");
             if (path != null) _rows.Add(new BatchRetreatRow(path));
+        }
+
+        // ---- 大小计算 ----
+
+        /// <summary>计算单行链接目标内容大小（行内“算”按钮）</summary>
+        private async void CalcRowSize_Click(object sender, RoutedEventArgs e)
+        {
+            if (_running || _calcRunning) return;
+            if (sender is not FrameworkElement { DataContext: BatchRetreatRow row }) return;
+            await CalcRowSizeAsync(row);
+        }
+
+        /// <summary>计算全部：按列表顺序逐行解析链接目标并计算内容大小（串行）</summary>
+        private async void CalcAll_Click(object sender, RoutedEventArgs e)
+        {
+            if (_running || _calcRunning) return;
+            var targets = _rows.Where(r => !string.IsNullOrWhiteSpace(r.LinkPath)).ToList();
+            if (targets.Count == 0) return;
+
+            _calcRunning = true;
+            CalcAllButton.IsEnabled = false;
+            try
+            {
+                foreach (var row in targets)
+                    await CalcRowSizeAsync(row);
+            }
+            finally
+            {
+                _calcRunning = false;
+                CalcAllButton.IsEnabled = true;
+            }
+        }
+
+        /// <summary>解析链接目标并计算内容大小（退迁时将复制回链接路径的内容）</summary>
+        private async Task CalcRowSizeAsync(BatchRetreatRow row)
+        {
+            var link = row.LinkPath?.Trim() ?? "";
+            try
+            {
+                if (link.Length == 0 || !Directory.Exists(link) || !JunctionHelper.IsReparsePoint(link))
+                {
+                    row.SizeText = "无法计算";
+                    return;
+                }
+                var target = RetreatHelper.ResolveTarget(link);
+                row.SizeText = "计算中…";
+                var result = await SizeHelper.GetSizeAsync(target, CancellationToken.None);
+                row.SizeText = $"{SizeHelper.Format(result.TotalBytes)} · {result.FileCount} 个文件"
+                               + (result.Incomplete ? "（部分无法读取）" : "");
+            }
+            catch
+            {
+                row.SizeText = "无法计算";
+            }
         }
 
         // ---- 拖拽添加 ----
@@ -83,6 +154,8 @@ namespace linktool.Pages
 
             SetRunningState(true);
             foreach (var r in _rows) r.Reset();
+            _running = true;
+            BusyState.Begin();
 
             var total = _rows.Count;
             var done = 0;
@@ -102,11 +175,13 @@ namespace linktool.Pages
             }
             finally
             {
+                _running = false;
                 SetRunningState(false);
+                BusyState.End();
             }
         }
 
-        /// <summary>后台处理单行：解析目标并退迁，成功返回 null，否则返回失败原因。</summary>
+        /// <summary>后台处理单行：解析目标 → 扫描（权限/占用/大小）→ 空间检查 → 退迁，成功返回 null，否则返回失败原因。</summary>
         private static string? ProcessRow(BatchRetreatRow row)
         {
             try
@@ -117,6 +192,32 @@ namespace linktool.Pages
                 if (!JunctionHelper.IsReparsePoint(link)) return "该路径不是目录链接，无需退迁";
 
                 var target = RetreatHelper.ResolveTarget(link);
+                if (!Directory.Exists(target)) return $"链接目标不存在：{target}";
+                if (JunctionHelper.IsReparsePoint(target)) return "链接目标仍是目录链接，请先处理目标后再退迁";
+
+                // 前置综合扫描：权限 + 占用 + 大小（一次遍历）
+                var scan = FileLockHelper.ScanDirectory(target);
+                if (scan.Denied.Count > 0)
+                    return $"无读取权限，请提权运行后重试（{scan.Denied.Count} 个文件无法访问）";
+                if (scan.Locked.Count > 0)
+                {
+                    var procs = FileLockHelper.GetLockingProcesses(target);
+                    if (procs.Count == 0) procs = FileLockHelper.GetProcessesLockingDirectory(target);
+                    var names = procs.Count > 0
+                        ? string.Join(", ", procs.Select(p => $"{p.ProcessName}(PID {p.Id})"))
+                        : "未知进程";
+                    return "目标被占用：" + names;
+                }
+
+                // 空间检查（含 1GB 余量；复制回链接路径所在盘，批量静默直接失败）
+                var free = SizeHelper.GetFreeSpace(link);
+                if (free != null)
+                {
+                    var required = scan.TotalBytes + SizeHelper.SpaceMarginBytes;
+                    if (free.Value < required)
+                        return $"磁盘空间不足：需要 {SizeHelper.Format(required)}，可用 {SizeHelper.Format(free.Value)}";
+                }
+
                 row.Target = target;
                 RetreatHelper.Retreat(link);
                 return null;
@@ -152,10 +253,18 @@ namespace linktool.Pages
         private string _linkPath = "";
         private string? _target;
         private string _status = "待处理";
+        private string _sizeText = "—";
+        private bool _isInvalid;
 
         public string LinkPath { get => _linkPath; set { _linkPath = value; OnPropertyChanged(nameof(LinkPath)); } }
         public string? Target { get => _target; set { _target = value; OnPropertyChanged(nameof(Target)); } }
         public string Status { get => _status; set { _status = value; OnPropertyChanged(nameof(Status)); } }
+
+        /// <summary>链接目标内容大小显示（手动点击“算”后填充）</summary>
+        public string SizeText { get => _sizeText; set { _sizeText = value; OnPropertyChanged(nameof(SizeText)); } }
+
+        /// <summary>链接路径不存在（标红）</summary>
+        public bool IsInvalid { get => _isInvalid; set { _isInvalid = value; OnPropertyChanged(nameof(IsInvalid)); } }
 
         public BatchRetreatRow() { }
         public BatchRetreatRow(string linkPath) => _linkPath = linkPath;

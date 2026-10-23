@@ -72,15 +72,19 @@ namespace linktool.Cli
 
             if (Directory.Exists(dest))
             {
+                if (Services.JunctionHelper.IsReparsePoint(dest))
+                    return Err($"目标位置已是目录链接，写入会穿透到链接目标内部：{dest}");
                 bool empty;
                 try { empty = !Directory.EnumerateFileSystemEntries(dest).Any(); }
                 catch { empty = false; }
                 if (!empty) return Err($"目标已存在且非空：{dest}");
             }
 
-            var locked = Services.FileLockHelper.CheckFileLocks(from);
-            if (locked.Count > 0)
-                return Err($"源文件夹被占用，请关闭占用程序后重试（{locked.First()} 等 {locked.Count} 项）");
+            var scan = Services.FileLockHelper.ScanDirectory(from);
+            if (scan.ReparseDirs.Count > 0)
+                Console.WriteLine($"  提示：源内含 {scan.ReparseDirs.Count} 个目录链接，链接本身不会被复制，也不会跟随其目标内容（链接目标数据不受影响）");
+            if (scan.Locked.Count > 0)
+                return Err($"源文件夹被占用，请关闭占用程序后重试（{scan.Locked.First()} 等 {scan.Locked.Count} 项）");
 
             Console.WriteLine($"迁移：{from} → {dest}");
 

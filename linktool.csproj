@@ -13,6 +13,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- 应用程序图标（可选） -->
     <ApplicationIcon>linktool.ico</ApplicationIcon>
+    <!-- 版本号：显示于“关于”页（AssemblyVersion/FileVersion/InformationalVersion） -->
+    <Version>2.2.0</Version>
     <!-- 生成单文件发布时包含本地库 -->
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>

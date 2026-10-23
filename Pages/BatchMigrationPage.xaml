@@ -8,8 +8,8 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="批量迁移" Style="{StaticResource SectionTitle}"/>
-                    <TextBlock Text="将多个文件夹批量移动到目标位置，并在原路径创建目录链接。支持多对一（共用通用目标目录）与多对多（每行单独指定目标）。"
-                               Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                    <TextBox Text="将多个文件夹批量移动到目标位置，并在原路径创建目录链接。支持多对一（共用通用目标目录）与多对多（每行单独指定目标）。"
+                             Style="{StaticResource SelectableHint}" Margin="0,4,0,0"/>
                 </StackPanel>
             </Border>
 
@@ -17,7 +17,7 @@
             <Border Style="{StaticResource Card}" Margin="0,16,0,0">
                 <StackPanel>
                     <TextBlock Text="通用目标目录（To）" Style="{StaticResource Label}"/>
-                    <TextBlock Text="留空时，每行必须单独填写 To；填写后，未填写 To 的行将迁移到该目录下。" Style="{StaticResource Hint}" Margin="0,0,0,8"/>
+                    <TextBox Text="留空时，每行必须单独填写 To；填写后，未填写 To 的行将迁移到该目录下。" Style="{StaticResource SelectableHint}" Margin="0,0,0,8"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -25,28 +25,33 @@
                         </Grid.ColumnDefinitions>
                         <ComboBox x:Name="CommonToBox" Grid.Column="0" Style="{StaticResource PathComboBox}" IsEditable="True"
                                   ToolTip="通用目标目录，未单独指定 To 的行将迁移到其下" KeyDown="CommonTo_KeyDown"/>
-                        <Button Grid.Column="1" Content="选择" Style="{StaticResource SecondaryButton}" Width="80" Margin="10,0,0,0"
-                                ToolTip="从文件夹对话框中选取通用目标目录" Click="CommonToBrowse_Click"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                            <Button Content="选择" Style="{StaticResource SecondaryButton}" MinWidth="80"
+                                    ToolTip="从文件夹对话框中选取通用目标目录（编辑框为空时打开上次选择的目录）" Click="CommonToBrowse_Click"/>
+                            <Button x:Name="CommonSpaceButton" Content="算可用空间" Style="{StaticResource SecondaryButton}" MinWidth="100" Margin="8,0,0,0"
+                                    ToolTip="查看通用目标目录所在磁盘的可用空间" Click="CommonSpace_Click"/>
+                        </StackPanel>
                     </Grid>
+                    <TextBox x:Name="CommonSpaceText" Style="{StaticResource SelectableHint}" Margin="0,4,0,0"/>
                 </StackPanel>
             </Border>
 
             <!-- 粘贴添加 -->
             <Border Style="{StaticResource Card}" Margin="0,16,0,0">
                 <StackPanel>
-                    <TextBlock Text="粘贴添加（每行一个源文件夹）" Style="{StaticResource Label}"/>
+                    <TextBlock Text="粘贴添加（每行一条；用 | 分隔两列：源|目标）" Style="{StaticResource Label}"/>
                     <TextBox x:Name="PasteBox" Style="{StaticResource TextBoxStyle}" AcceptsReturn="True"
                              TextWrapping="Wrap" Height="90" VerticalScrollBarVisibility="Auto"
                              VerticalContentAlignment="Top"
-                             ToolTip="每行一个源文件夹路径"/>
+                             ToolTip="每行一个源文件夹路径；也可用 源|目标 每行两列"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                        <Button x:Name="AddButton" Content="添加" Style="{StaticResource PrimaryButton}" Width="120" Click="AddPaste_Click"
-                                ToolTip="将编辑框中的每行路径作为一个源文件夹加入列表"/>
-                        <Button x:Name="BrowseButton" Content="选择" Style="{StaticResource SecondaryButton}" Width="120" Margin="12,0,0,0" Click="BrowseButton_Click"
+                        <Button x:Name="AddButton" Content="添加" Style="{StaticResource PrimaryButton}" MinWidth="120" Click="AddPaste_Click"
+                                ToolTip="将编辑框中的路径解析后加入列表"/>
+                        <Button x:Name="BrowseButton" Content="选择" Style="{StaticResource SecondaryButton}" MinWidth="120" Margin="12,0,0,0" Click="BrowseButton_Click"
                                 ToolTip="从文件夹对话框选取一个源文件夹加入列表"/>
                     </StackPanel>
-                    <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
-                               Text="支持一次粘贴多行路径，或点击“选择”，或直接从资源管理器拖入文件夹。"/>
+                    <TextBox Style="{StaticResource SelectableHint}" Margin="0,6,0,0"
+                             Text="换行分行；行内用 | 分两列（第1列 From，第2列 行To）；带引号的路径自动提取；不存在的路径会加入列表并标红。也可点击“选择”或拖入文件夹。"/>
                 </StackPanel>
             </Border>
 
@@ -64,12 +69,50 @@
                               HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                               MinHeight="220" Margin="0,0,0,12">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="From（源文件夹）" Binding="{Binding From, UpdateSourceTrigger=PropertyChanged}" Width="300"/>
-                            <DataGridTextColumn Header="To（目标，可留空）" Binding="{Binding To, UpdateSourceTrigger=PropertyChanged}" Width="300"/>
+                            <DataGridTextColumn Header="From（源文件夹）" Binding="{Binding From, UpdateSourceTrigger=PropertyChanged}" Width="300">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="ToolTip" Value="{Binding From}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsInvalidFrom}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="To（目标，可留空）" Binding="{Binding To, UpdateSourceTrigger=PropertyChanged}" Width="300">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="ToolTip" Value="{Binding To}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsInvalidTo}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="大小" Width="220">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="算" MinWidth="32" Height="22" Padding="8,0"
+                                                    Style="{StaticResource SecondaryButton}" FontSize="12"
+                                                    ToolTip="计算该行源文件夹的大小" Click="CalcRowSize_Click"/>
+                                            <TextBlock Text="{Binding SizeText}" Margin="6,0,0,0" VerticalAlignment="Center"
+                                                       ToolTip="{Binding SizeText}"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="状态" Width="Auto">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" ToolTip="{Binding Status}">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
@@ -97,7 +140,9 @@
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="RemoveButton" Content="移除选中" Style="{StaticResource SecondaryButton}" Click="RemoveSelected_Click"/>
                         <Button x:Name="ClearButton" Content="清空" Style="{StaticResource SecondaryButton}" Margin="12,0,0,0" Click="Clear_Click"/>
-                        <Button x:Name="StartButton" Content="开始批量迁移" Style="{StaticResource PrimaryButton}" Margin="12,0,0,0" Width="160" Click="Start_Click"/>
+                        <Button x:Name="CalcAllButton" Content="计算全部" Style="{StaticResource SecondaryButton}" Margin="12,0,0,0" Click="CalcAll_Click"
+                                ToolTip="按列表顺序逐行计算源文件夹大小（串行执行，避免磁盘过载）"/>
+                        <Button x:Name="StartButton" Content="开始批量迁移" Style="{StaticResource PrimaryButton}" Margin="12,0,0,0" MinWidth="160" Click="Start_Click"/>
                     </StackPanel>
                     <Grid Margin="0,16,0,0">
                         <Grid.ColumnDefinitions>

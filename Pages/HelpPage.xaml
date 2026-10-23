@@ -1,30 +1,184 @@
 <UserControl x:Class="linktool.Pages.HelpPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- Tab 项样式：贴合浅色极简主题 -->
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Bd" Background="Transparent" BorderThickness="0,0,0,2" BorderBrush="Transparent"
+                                Padding="{TemplateBinding Padding}" Margin="0,0,6,0">
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+    </UserControl.Resources>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel>
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Text="帮助" Style="{StaticResource SectionTitle}"/>
-                    <TextBlock Text="LinkTool 用于将大文件夹迁移到其他盘符，并在原路径创建目录链接，使依赖原路径的程序无需改动即可继续访问。" Style="{StaticResource Hint}" Margin="0,6,0,18"/>
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="帮助" Style="{StaticResource SectionTitle}"/>
+                <TextBox Style="{StaticResource SelectableHint}" Margin="0,6,0,14"
+                         Text="LinkTool 用于将大文件夹迁移到其他盘符，并在原路径创建目录链接（Junction），使依赖原路径的程序无需改动即可继续访问。"/>
 
-                    <TextBlock Text="迁移" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,10"
-                               Text="选择源文件夹（From）与目标文件夹（To），点击“迁移”。程序将：1) 复制文件到目标；2) 删除源；3) 在原路径创建目录链接。迁移后通过原路径仍可访问。" />
+                <TabControl>
+                    <!-- ============ 快速上手 ============ -->
+                    <TabItem Header="快速上手">
+                        <StackPanel Margin="0,12,0,0">
+                            <TextBlock Text="三种核心操作" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="· 迁移：把源文件夹（From）复制到目标位置（To）下，删除源，再在原路径创建指向新位置的目录链接。&#x0a;· 链接：仅在指定位置创建一条 Junction 目录链接指向已有文件夹，不复制不删除。&#x0a;· 退迁：迁移的逆操作。把链接目标的内容复制回原路径，删除链接与旧目标，恢复迁移前状态。"/>
 
-                    <TextBlock Text="批量迁移" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,10,0,0"/>
-                    <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,10"
-                               Text="可一次迁移多个文件夹。支持“通用目标目录”批量指定目标；每行可单独指定目标路径（多对一 / 多对多）。支持直接粘贴多行路径与拖拽文件夹。" />
+                            <TextBlock Text="基本步骤" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="1. 填写路径：在输入框直接输入，点“选择”从对话框选取（编辑框为空时自动打开上次选择的目录），或从资源管理器拖入。&#x0a;2. 可选：点“算大小”查看文件夹体积，点“算可用空间”查看目标磁盘剩余空间。&#x0a;3. 点击操作按钮。程序会先自动检查权限、文件占用与目标磁盘空间，全部通过并确认后才执行。"/>
 
-                    <TextBlock Text="链接 / 批量链接" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,10,0,0"/>
-                    <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,10"
-                               Text="仅创建目录链接，不复制不删除。链接位置（LINK）即旧路径，目标路径（Target）即真实目录。批量链接支持多行与通用目标目录。" />
+                            <TextBlock Text="管理员权限" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,0"
+                                     Text="部分复制、删除、链接操作需要管理员权限。未提权时主页底部会显示警告条，可点击“提权运行”重启。建议始终以管理员身份运行。"/>
+                        </StackPanel>
+                    </TabItem>
 
-                    <TextBlock Text="管理员权限" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,10,0,0"/>
-                    <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
-                               Text="部分复制、删除、链接操作需要管理员权限。未提权时，主页底部会显示警告条，可点击“提权运行”重启。建议始终以管理员身份运行。" />
-                </StackPanel>
-            </Border>
-        </StackPanel>
+                    <!-- ============ 功能详解 ============ -->
+                    <TabItem Header="功能详解">
+                        <StackPanel Margin="0,12,0,0">
+                            <TextBlock Text="迁移（6 个阶段）" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="阶段0 前置检查：扫描源文件夹，检查文件读取权限、程序占用（可强制结束占用进程后自动复检）、目标磁盘空间（不足时弹窗警示，可选择自担风险继续）。&#x0a;阶段1 复制：.NET API 复制（保留属性/时间戳），失败自动降级为 robocopy /E /COPYALL；显示文件级进度。&#x0a;阶段2 删除源：标准删除 → 终止占用进程重试 → 管理员终端 rmdir /S /Q；删除失败不阻断后续流程。&#x0a;阶段3 创建链接：Win32 API → 管理员重试 → cmd mklink /J 三级降级。&#x0a;阶段4 清理：释放资源、恢复界面。"/>
+                            <TextBlock Text="“使用终端执行”模式" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="不使用内置复制引擎，而是打开可见 cmd 窗口依次执行 robocopy / rmdir / mklink /J，便于肉眼排查命令级错误。执行前同样进行前置检查。"/>
+
+                            <TextBlock Text="链接" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="链接位置（LINK）：Junction 被创建的位置，对应旧路径，需为空或不存在。&#x0a;目标路径（Target）：链接指向的真实文件夹，需已存在。创建后通过 LINK 访问即 Target 内容。"/>
+
+                            <TextBlock Text="链接扫描" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="递归扫描目录下的所有 Junction/符号链接，列出链接本体、目标位置与层数。扫描路径支持下拉历史与“选择”按钮（编辑框为空时打开上次选择的目录）。&#x0a;默认遇到链接只记录不进入；勾选“启用链接递归”后跟随链接继续扫描。递归限制：0 = 禁用（不跟随）；负数或超过 100 报错；跟随层数超过 10 层时警告可能存在循环链接。&#x0a;遍历深度：目录层级上限（0 = 不限制），超过层级的子目录不展开；链接跳转后从第 0 层重新计算，与链接递归限制互不影响。&#x0a;默认跳过隐藏/系统目录（如「开始」菜单、Application Data 等系统兼容链接——它们隐藏、无访问权限、解析不出目标）；勾选“显示隐藏/系统目录”可一并扫描。&#x0a;特殊链接会在目标列标注：[自指链接] / [目标不存在] / [无访问权限，内容不可见] / （非常规链接类型 0x……，无法解析目标）/（无法读取条目信息，可能为悬空或损坏的链接——此类条目 Test-Path 为 False 但本体仍在）。结果可一键复制，单元格文本可选中复制。"/>
+
+                            <TextBlock Text="退迁" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,0"
+                                     Text="仅对迁移生成的 Junction 有效。流程：解析链接目标 → 检查目标内容权限/占用/空间 → 先复制到同盘临时目录 → 删除链接 → 临时目录改名回原路径 → 删除旧目标。任一步失败都会回滚，原链接保持可用。"/>
+                        </StackPanel>
+                    </TabItem>
+
+                    <!-- ============ 批量操作 ============ -->
+                    <TabItem Header="批量操作">
+                        <StackPanel Margin="0,12,0,0">
+                            <TextBlock Text="批量迁移 / 批量链接 / 批量退迁" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="批量迁移支持多对一（共用通用目标目录）与多对多（每行单独指定 To）；批量链接未填链接目录的行会自动创建到通用链接位置下（与目标同名）；批量退迁逐行退迁。执行为后台单线程顺序处理，避免磁盘过载；任一行失败不影响其他行，失败原因显示在状态列。"/>
+
+                            <TextBlock Text="添加行的方式" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="· 粘贴添加：在粘贴框输入/粘贴文本后点“添加”（格式见下）。&#x0a;· 选择：点“选择”从对话框选取一个文件夹加入列表。&#x0a;· 拖拽：从资源管理器把文件夹直接拖进列表。&#x0a;· 移除选中 / 清空：管理已有行。"/>
+
+                            <TextBlock Text="粘贴数据格式（重要）" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,4"
+                                     Text="分隔符均为 Windows 路径禁用字符，绝不会与路径内容冲突："/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,0,0,4"
+                                     Text="· 换行 = 分行，每行一条记录。&#x0a;· “|”（竖线）= 分列，用于一行同时填两列。&#x0a;· 引号段自动提取：&quot;C:\a&quot; &quot;C:\b&quot; 会被解析为两条独立记录（兼容从资源管理器复制的样式）。&#x0a;· 不存在的路径也会加入列表并标红显示，状态列提示“路径不存在”，执行时该行判失败。&#x0a;· 相同主路径自动去重。"/>
+                            <Border Background="{StaticResource HoverBrush}" CornerRadius="8" Padding="12,8" Margin="0,4,0,10">
+                                <TextBox FontFamily="Consolas" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"
+                                         Style="{StaticResource SelectableHint}"
+                                         Text="批量迁移：&#x0a;  C:\Games\GameA                     （仅源，目标用通用目标目录）&#x0a;  C:\Games\GameB|E:\To               （源|行目标，两列）&#x0a;&#x0a;批量链接：&#x0a;  D:\Data\Photos                     （仅目标，链接目录用通用链接位置）&#x0a;  C:\Old\Photos|D:\Data\Photos       （链接目录|目标，两列）&#x0a;&#x0a;批量退迁：&#x0a;  C:\Games\GameA                     （每行取第1列作为链接路径）"/>
+                            </Border>
+
+                            <TextBlock Text="大小计算与空间查看" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,0"
+                                     Text="列表“大小”列默认显示“—”：点行内“算”计算单行；点“计算全部”按列表顺序逐行计算（串行执行，对磁盘友好）。批量迁移页通用目标目录旁的“算可用空间”可查看目标磁盘剩余空间。执行时程序会自动做空间检查（源大小 + 1 GB 余量），不足时该行失败并给出需要/可用数值。"/>
+                        </StackPanel>
+                    </TabItem>
+
+                    <!-- ============ CLI 命令 ============ -->
+                    <TabItem Header="CLI 命令">
+                        <StackPanel Margin="0,12,0,0">
+                            <TextBlock Text="命令行模式" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="带命令行参数启动程序即进入 CLI 模式：非交互执行并退出，适合脚本与自动化。无参数启动则进入图形界面。"/>
+                            <Border Background="{StaticResource HoverBrush}" CornerRadius="8" Padding="12,8" Margin="0,0,0,10">
+                                <TextBox FontFamily="Consolas" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"
+                                         Style="{StaticResource SelectableHint}"
+                                         Text="linktool help&#x0a;linktool migrate --from &lt;源文件夹&gt; --to &lt;目标目录&gt;&#x0a;linktool link --link &lt;链接位置&gt; --target &lt;目标路径&gt;   （链接创建在 链接位置\目标同名 下）&#x0a;linktool retreat --link &lt;链接路径&gt;&#x0a;linktool batch-migrate --from &lt;源1;源2;...&gt; --to &lt;目标目录&gt;&#x0a;linktool batch-link --target &lt;目标1;目标2;...&gt; --link-dir &lt;通用链接位置&gt;"/>
+                            </Border>
+                            <TextBox Style="{StaticResource SelectableHint}"
+                                     Text="说明：多路径参数用分号“;”分隔；CLI 模式沿用与界面相同的校验与多级降级策略；链接创建失败但文件已迁移时返回 0 并给出手动修复提示。"/>
+                        </StackPanel>
+                    </TabItem>
+
+                    <!-- ============ FAQ ============ -->
+                    <TabItem Header="常见问题">
+                        <StackPanel Margin="0,12,0,0">
+                            <TextBlock Text="Junction 目录链接是什么？" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="Junction 是 NTFS 的目录联接：一个指向真实目录的“入口”。程序访问链接路径时，实际读写的是目标路径的内容，对应用完全透明。迁移后旧路径配置无需改动。"/>
+
+                            <TextBlock Text="提示权限不足怎么办？" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="点击主页底部警告条的“提权运行”，或右键以管理员身份运行本程序。部分系统/受保护文件必须管理员才能读写。"/>
+
+                            <TextBlock Text="提示文件被占用怎么办？" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="弹窗会列出占用进程（名称与 PID）。先尝试正常退出相关程序（含后台/托盘）；也可勾选后点“强制结束选中进程”，结束后程序会自动重新检测。注意：强杀未保存数据的程序可能造成数据丢失；系统级进程需管理员权限才能结束。"/>
+
+                            <TextBlock Text="源文件夹删除失败怎么办？" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="文件已复制到目标位置，不影响数据安全。按提示手动清理源文件夹即可（程序会给出具体路径）。"/>
+
+                            <TextBlock Text="迁移/退迁可以撤销吗？" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="迁移后可用“退迁”完整恢复到迁移前状态。退迁自身失败会自动回滚。但没有跨迁移的撤销历史，操作前请确认路径正确。"/>
+
+                            <TextBlock Text="弹窗里的错误信息能复制吗？" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,0"
+                                     Text="可以。弹窗文本可直接选中后 Ctrl+C 复制（消息区支持选择），无需额外按钮。"/>
+                        </StackPanel>
+                    </TabItem>
+
+                    <!-- ============ 安全警告 ============ -->
+                    <TabItem Header="安全警告">
+                        <StackPanel Margin="0,12,0,0">
+                            <TextBlock Text="请勿迁移以下目录" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource DangerBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="· 系统关键目录（Windows、Program Files 等）与驱动相关目录，可能导致系统损坏、无法启动。&#x0a;· 含 “Microsoft” 字样的目录需格外谨慎，可能导致部分微软组件异常。&#x0a;· C:\Users\用户名 目录，可能导致用户账户登录异常。"/>
+
+                            <TextBlock Text="磁盘空间不足免责声明" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource DangerBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="执行迁移/退迁前，程序会按“内容大小 + 1 GB 安全余量”检查目标磁盘可用空间。空间不足时会弹窗警示，若您选择“仍要执行（自担风险）”：空间不足可能导致复制不完整、数据损坏或系统运行不稳定，由此产生的一切数据丢失与后果由用户自行承担，本程序作者不承担任何责任。"/>
+
+                            <TextBlock Text="强制结束进程风险" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource DangerBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,10"
+                                     Text="占用处理弹窗支持强制结束进程。强杀进程可能导致相关程序未保存的数据丢失；请在确认无未保存工作后再操作。"/>
+
+                            <TextBlock Text="嵌套/循环目录链接防护" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox Style="{StaticResource SelectableHint}" Margin="0,4,0,0"
+                                     Text="源文件夹内部的 Junction/符号链接不会被跟随：链接本身不复制、不统计其目标内容（防循环递归与重复复制），发现时会先弹窗告知。&#x0a;目标位置已是目录链接时直接中止（避免写入穿透到链接目标内部）。&#x0a;创建链接时，链接与目标重叠（相同或互为祖先，如 C:\a\loop → C:\a）会被拒绝，防止形成无限循环链接；Junction 也不支持 UNC 网络路径目标。"/>
+                        </StackPanel>
+                    </TabItem>
+                </TabControl>
+            </StackPanel>
+        </Border>
     </ScrollViewer>
 </UserControl>

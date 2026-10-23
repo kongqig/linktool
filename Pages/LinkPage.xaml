@@ -8,7 +8,7 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="创建目录链接" Style="{StaticResource SectionTitle}"/>
-                    <TextBlock Text="在指定位置创建一个 Junction 目录链接，指向目标文件夹。原路径访问即目标路径访问。" Style="{StaticResource Hint}" Margin="0,4,0,20"/>
+                    <TextBox Text="在指定位置创建一个 Junction 目录链接，指向目标文件夹。原路径访问即目标路径访问。" Style="{StaticResource SelectableHint}" Margin="0,4,0,20"/>
 
                     <!-- 链接位置 -->
                     <TextBlock Text="链接位置（LINK）" Style="{StaticResource Label}"/>
@@ -19,8 +19,8 @@
                         </Grid.ColumnDefinitions>
                         <ComboBox x:Name="LinkBox" Grid.Column="0" Style="{StaticResource PathComboBox}" IsEditable="True"
                                   ToolTip="在此路径创建目录链接（该位置需为空或不存在）" KeyDown="Path_KeyDown"/>
-                        <Button Grid.Column="1" Content="选择" Style="{StaticResource SecondaryButton}" Width="80" Margin="10,0,0,0"
-                                ToolTip="选择链接位置" Click="LinkBrowseButton_Click"/>
+                        <Button Grid.Column="1" Content="选择" Style="{StaticResource SecondaryButton}" MinWidth="80" Margin="10,0,0,0"
+                                ToolTip="选择链接位置（编辑框为空时打开上次选择的目录）" Click="LinkBrowseButton_Click"/>
                     </Grid>
 
                     <!-- 目标路径 -->
@@ -32,17 +32,22 @@
                         </Grid.ColumnDefinitions>
                         <ComboBox x:Name="TargetBox" Grid.Column="0" Style="{StaticResource PathComboBox}" IsEditable="True"
                                   ToolTip="链接将指向的目标文件夹（需存在）" KeyDown="Path_KeyDown"/>
-                        <Button Grid.Column="1" Content="选择" Style="{StaticResource SecondaryButton}" Width="80" Margin="10,0,0,0"
-                                ToolTip="选择目标文件夹" Click="TargetBrowseButton_Click"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                            <Button Content="选择" Style="{StaticResource SecondaryButton}" MinWidth="80"
+                                    ToolTip="选择目标文件夹（编辑框为空时打开上次选择的目录）" Click="TargetBrowseButton_Click"/>
+                            <Button x:Name="CalcTargetSizeButton" Content="算大小" Style="{StaticResource SecondaryButton}" MinWidth="80" Margin="8,0,0,0"
+                                    ToolTip="统计目标文件夹的总大小与文件数" Click="CalcTargetSize_Click"/>
+                        </StackPanel>
                     </Grid>
+                    <TextBox x:Name="TargetSizeText" Style="{StaticResource SelectableHint}" Margin="0,4,0,0"/>
 
                     <!-- 操作 -->
                     <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
-                        <Button x:Name="CreateButton" Content="创建链接" Style="{StaticResource PrimaryButton}" Width="140"
+                        <Button x:Name="CreateButton" Content="创建链接" Style="{StaticResource PrimaryButton}" MinWidth="140"
                                 ToolTip="在链接位置创建指向目标路径的 Junction 目录链接" Click="CreateButton_Click"/>
                     </StackPanel>
 
-                    <TextBlock x:Name="StatusText" Style="{StaticResource Hint}" Margin="0,14,0,0" Visibility="Collapsed"/>
+                    <TextBox x:Name="StatusText" Style="{StaticResource SelectableHint}" Margin="0,14,0,0" Visibility="Collapsed"/>
                 </StackPanel>
             </Border>
 
@@ -50,8 +55,8 @@
             <Border Style="{StaticResource Card}" Margin="0,16,0,0">
                 <StackPanel>
                     <TextBlock Text="说明" Style="{StaticResource SectionTitle}" FontSize="15"/>
-                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
-                               Text="· 链接位置（LINK）：Junction 将被创建的位置，对应旧路径。&#x0a;· 目标路径（Target）：链接指向的真实文件夹，需已存在。&#x0a;· 创建后，通过 LINK 路径访问的内容即 Target 路径的内容。"/>
+                    <TextBox Style="{StaticResource SelectableHint}" Margin="0,8,0,0"
+                             Text="· 链接位置（LINK）：Junction 将被创建的位置，对应旧路径。&#x0a;· 目标路径（Target）：链接指向的真实文件夹，需已存在。&#x0a;· 创建后，通过 LINK 路径访问的内容即 Target 路径的内容。"/>
                 </StackPanel>
             </Border>
         </StackPanel>

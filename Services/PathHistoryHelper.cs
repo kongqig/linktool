@@ -23,10 +23,23 @@ namespace linktool.Services
             combo.Text = text;
         }
 
-        /// <summary>弹出文件夹选择对话框，返回路径或 null</summary>
-        public static string? Browse(string description)
+        /// <summary>
+        /// 弹出文件夹选择对话框，返回路径或 null。
+        /// 初始目录优先级：编辑框当前文本（目录存在）→ 该键历史最新一条（目录存在）→ 系统默认。
+        /// </summary>
+        public static string? Browse(string description, ComboBox? combo = null, string? historyKey = null)
         {
             var dialog = new OpenFolderDialog { Title = description };
+
+            var initial = combo?.Text?.Trim();
+            if (string.IsNullOrEmpty(initial) && historyKey != null)
+            {
+                var history = AppSettings.Instance.GetHistory(historyKey);
+                initial = history.Count > 0 ? history[0] : null;
+            }
+            if (!string.IsNullOrEmpty(initial) && System.IO.Directory.Exists(initial))
+                dialog.InitialDirectory = initial;
+
             return dialog.ShowDialog() == true ? dialog.FolderName : null;
         }
     }

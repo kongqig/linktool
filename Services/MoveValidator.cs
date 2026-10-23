@@ -32,6 +32,10 @@ namespace linktool.Services
             if (fullTo.StartsWith(fullFrom + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 return "目标文件夹不能是源文件夹的子目录，这会导致递归移动。";
 
+            var fromParent = Path.GetDirectoryName(fullFrom);
+            if (!string.IsNullOrEmpty(fromParent) && string.Equals(fromParent, fullTo, StringComparison.OrdinalIgnoreCase))
+                return "源文件夹已位于该目标目录下，无需迁移。";
+
             var fromRoot = Path.GetPathRoot(fromPath);
             var toRoot = Path.GetPathRoot(toPath);
             if (!string.IsNullOrEmpty(fromRoot) && !Directory.Exists(fromRoot)) return $"源路径所在的驱动器不存在：\n{fromRoot}";
@@ -53,6 +57,11 @@ namespace linktool.Services
                 if (!IsValidPath(toPath)) return $"目标路径格式不合法：\n{toPath}";
                 var toRoot = Path.GetPathRoot(toPath);
                 if (!string.IsNullOrEmpty(toRoot) && !Directory.Exists(toRoot)) return $"目标驱动器不存在：\n{toRoot}";
+                var fullFrom = Path.GetFullPath(fromPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var fullTo = Path.GetFullPath(toPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var fromParent = Path.GetDirectoryName(fullFrom);
+                if (!string.IsNullOrEmpty(fromParent) && string.Equals(fromParent, fullTo, StringComparison.OrdinalIgnoreCase))
+                    return "源文件夹已位于该目标目录下，无需迁移。";
             }
             return null;
         }

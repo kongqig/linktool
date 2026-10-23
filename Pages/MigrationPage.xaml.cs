@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,12 +13,14 @@ namespace linktool.Pages
 {
     /// <summary>
     /// 迁移页：单个文件夹的迁移（复制 → 删除源 → 创建目录链接）与终端执行模式。
-    /// 路径输入支持历史下拉记忆。
+    /// 路径输入支持历史下拉记忆；执行前进行权限/占用/空间检查，占用可强制结束后复检。
     /// </summary>
     public partial class MigrationPage : UserControl
     {
         private const string FromKey = "migration.from";
         private const string ToKey = "migration.to";
+
+        private CancellationTokenSource? _calcCts; // 算大小取消令牌（新计算取消旧计算）
 
         public MigrationPage()
         {
@@ -35,13 +38,13 @@ namespace linktool.Pages
 
         private void FromBrowseButton_Click(object sender, RoutedEventArgs e)
         {
-            var path = PathHistoryHelper.Browse("选择要迁移的文件夹");
+            var path = PathHistoryHelper.Browse("选择要迁移的文件夹", FromBox, FromKey);
             if (path != null) { FromBox.Text = path; PathHistoryHelper.Remember(FromBox, FromKey); }
         }
 
         private void ToBrowseButton_Click(object sender, RoutedEventArgs e)
         {
-            var path = PathHistoryHelper.Browse("选择目标文件夹");
+            var path = PathHistoryHelper.Browse("选择目标文件夹", ToBox, ToKey);
             if (path != null) { ToBox.Text = path; PathHistoryHelper.Remember(ToBox, ToKey); }
         }
 
@@ -51,7 +54,58 @@ namespace linktool.Pages
             PathHistoryHelper.Remember(ToBox, ToKey);
         }
 
-        /// <summary>迁移按钮：完整流程</summary>
+        /// <summary>算大小：后台遍历统计源文件夹的总大小与文件数</summary>
+        private async void CalcFromSize_Click(object sender, RoutedEventArgs e)
+        {
+            var path = FromBox.Text?.Trim() ?? "";
+            if (!Directory.Exists(path))
+            {
+                DialogHelper.Warn("提示", "请先填写有效的源文件夹路径。");
+                return;
+            }
+
+            _calcCts?.Cancel();
+            using var cts = new CancellationTokenSource();
+            _calcCts = cts;
+            CalcFromSizeButton.IsEnabled = false;
+            FromSizeText.Text = "计算中…";
+            try
+            {
+                var result = await SizeHelper.GetSizeAsync(path, cts.Token);
+                if (cts.IsCancellationRequested) return;
+                FromSizeText.Text = $"{SizeHelper.Format(result.TotalBytes)} · {result.FileCount} 个文件"
+                                    + (result.Incomplete ? "（部分文件无法读取，结果可能偏小）" : "");
+            }
+            catch (OperationCanceledException) { /* 被新计算取消 */ }
+            catch (Exception ex)
+            {
+                if (!cts.IsCancellationRequested)
+                {
+                    FromSizeText.Text = "";
+                    DialogHelper.Error("错误", $"计算大小失败：{ex.Message}");
+                }
+            }
+            finally
+            {
+                if (_calcCts == cts) _calcCts = null;
+                CalcFromSizeButton.IsEnabled = true;
+            }
+        }
+
+        /// <summary>算可用空间：显示目标文件夹所在磁盘的可用空间</summary>
+        private void CalcToSpace_Click(object sender, RoutedEventArgs e)
+        {
+            var path = ToBox.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                DialogHelper.Warn("提示", "请先填写目标文件夹路径。");
+                return;
+            }
+            var free = SizeHelper.GetFreeSpace(path);
+            ToSpaceText.Text = free == null ? "无法获取可用空间" : $"可用 {SizeHelper.Format(free.Value)}";
+        }
+
+        /// <summary>迁移按钮：前置检查（权限/占用/空间）→ 确认 → 完整流程</summary>
         private async void MoveButton_Click(object sender, RoutedEventArgs e)
         {
             var fromPath = FromBox.Text?.Trim() ?? "";
@@ -62,50 +116,21 @@ namespace linktool.Pages
 
             RememberPaths();
 
-            var fromDirName = System.IO.Path.GetFileName(fromPath.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
-            var destDir = System.IO.Path.Combine(toPath, fromDirName);
-
-            if (!DialogHelper.Confirm("确认迁移",
-                $"确定要将文件夹迁移吗？\n\n从：{fromPath}\n到：{destDir}\n\n操作将：复制文件 → 删除源 → 创建目录链接",
-                "迁移", danger: true))
-                return;
+            var fromDirName = Path.GetFileName(fromPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            var destDir = Path.Combine(toPath, fromDirName);
 
             SetBusy(true);
-
+            BusyState.Begin();
             try
             {
-                // 阶段0：前置检查
-                var denied = await Task.Run(() => FileLockHelper.CheckFileAccessibility(fromPath));
-                if (denied.Count > 0)
-                {
-                    ResetProgress();
-                    DialogHelper.Error("权限不足", "以下文件无读取权限，无法继续：\n\n" + JoinTop(denied, 20) + "\n\n请尝试以管理员身份运行或检查文件权限。");
-                    return;
-                }
+                // 前置检查：权限 → 占用（可强制结束后复检）→ 目标同名 → 空间（含免责确认）
+                var (proceed, _) = await RunPreChecksAsync(fromPath, destDir, toPath);
+                if (!proceed) return;
 
-                var locked = await Task.Run(() => FileLockHelper.CheckFileLocks(fromPath));
-                if (locked.Count > 0)
-                {
-                    var procs = FileLockHelper.GetLockingProcesses(fromPath);
-                    var procInfo = procs.Count > 0 ? "\n\n占用进程：\n" + string.Join("\n", procs.Select(p => $"  - {p.ProcessName} (PID: {p.Id})")) : "";
-                    ResetProgress();
-                    DialogHelper.Warn("文件被占用", "有程序正在占用源文件夹，需要完全退出相关程序（含后台/托盘程序）后重试：\n\n" + JoinTop(locked, 10) + procInfo);
+                if (!DialogHelper.Confirm("确认迁移",
+                    $"确定要将文件夹迁移吗？\n\n从：{fromPath}\n到：{destDir}\n\n操作将：复制文件 → 删除源 → 创建目录链接",
+                    "迁移", danger: true))
                     return;
-                }
-
-                // 目标同名存在检查
-                if (System.IO.Directory.Exists(destDir))
-                {
-                    bool empty;
-                    try { empty = !System.IO.Directory.EnumerateFileSystemEntries(destDir).Any(); }
-                    catch { empty = false; }
-                    if (!empty)
-                    {
-                        ResetProgress();
-                        DialogHelper.Warn("目标已存在", $"目标文件夹下已存在同名文件夹且包含内容，无法操作：\n{destDir}\n\n请先清空或删除后重试。");
-                        return;
-                    }
-                }
 
                 // 阶段1：复制
                 SetProgress(0, 0, "正在统计文件...");
@@ -113,7 +138,7 @@ namespace linktool.Pages
 
                 if (allFiles.Count == 0)
                 {
-                    System.IO.Directory.CreateDirectory(destDir);
+                    Directory.CreateDirectory(destDir);
                 }
                 else
                 {
@@ -138,7 +163,7 @@ namespace linktool.Pages
                         {
                             SetProgress(0, allFiles.Count, "正在请求管理员权限...");
                             copyOk = await Task.Run(() => AdminHelper.RunAsAdminWithTerminal("robocopy.exe",
-                                $"\"{fromPath}\" \"{destDir}\" /E /COPYALL /DCOPY:T /R:3 /W:5") <= 7);
+                                $"\"{fromPath}\" \"{destDir}\" /E /COPYALL /DCOPY:T /XJ /R:3 /W:5") <= 7);
                         }
                     }
 
@@ -176,12 +201,13 @@ namespace linktool.Pages
             }
             finally
             {
+                BusyState.End();
                 SetBusy(false);
                 ResetProgress();
             }
         }
 
-        /// <summary>使用终端执行：可见终端顺序 robocopy → rmdir → mklink /J</summary>
+        /// <summary>使用终端执行：前置检查 → 确认 → 可见终端顺序 robocopy → rmdir → mklink /J</summary>
         private async void TerminalMoveButton_Click(object sender, RoutedEventArgs e)
         {
             var fromPath = FromBox.Text?.Trim() ?? "";
@@ -192,44 +218,26 @@ namespace linktool.Pages
 
             RememberPaths();
 
-            var fromDirName = System.IO.Path.GetFileName(fromPath.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
-            var destDir = System.IO.Path.Combine(toPath, fromDirName);
-
-            if (System.IO.Directory.Exists(destDir))
-            {
-                bool empty;
-                try { empty = !System.IO.Directory.EnumerateFileSystemEntries(destDir).Any(); }
-                catch { empty = false; }
-                if (!empty)
-                {
-                    DialogHelper.Warn("目标已存在", $"目标文件夹下已存在同名文件夹且包含内容：\n{destDir}");
-                    return;
-                }
-            }
-
-            var procs = FileLockHelper.GetProcessesLockingDirectory(fromPath);
-            if (procs.Count > 0)
-            {
-                var list = string.Join("\n", procs.Select(p => $"  - {p.ProcessName} (PID: {p.Id})"));
-                if (!DialogHelper.Confirm("检测到进程占用",
-                    $"以下进程正在占用源文件夹，可能导致复制不完整：\n{list}\n\n建议先关闭这些进程。是否仍要继续？",
-                    "仍要继续"))
-                    return;
-            }
-
-            if (!DialogHelper.Confirm("确认终端执行",
-                $"确定要使用终端执行迁移操作吗？\n\n从：{fromPath}\n到：{destDir}\n\n将打开可见终端依次执行：\n1. robocopy 复制\n2. rmdir 删除源\n3. mklink /J 创建链接",
-                "执行", danger: true))
-                return;
+            var fromDirName = Path.GetFileName(fromPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            var destDir = Path.Combine(toPath, fromDirName);
 
             SetBusy(true);
+            BusyState.Begin();
             try
             {
+                var (proceed, _) = await RunPreChecksAsync(fromPath, destDir, toPath);
+                if (!proceed) return;
+
+                if (!DialogHelper.Confirm("确认终端执行",
+                    $"确定要使用终端执行迁移操作吗？\n\n从：{fromPath}\n到：{destDir}\n\n将打开可见终端依次执行：\n1. robocopy 复制\n2. rmdir 删除源\n3. mklink /J 创建链接",
+                    "执行", danger: true))
+                    return;
+
                 await Task.Run(() =>
                 {
                     var batchCmd = $"echo === LinkTool 迁移 === & echo. & " +
                         "echo [1/3] robocopy 复制文件... & " +
-                        $"robocopy \"{fromPath}\" \"{destDir}\" /E /COPYALL /DCOPY:T /R:3 /W:5 & echo. & " +
+                        $"robocopy \"{fromPath}\" \"{destDir}\" /E /COPYALL /DCOPY:T /XJ /R:3 /W:5 & echo. & " +
                         "echo [2/3] rmdir 删除源文件夹... & " +
                         $"rmdir /S /Q \"{fromPath}\" & echo. & " +
                         "echo [3/3] mklink /J 创建目录链接... & " +
@@ -253,8 +261,75 @@ namespace linktool.Pages
             }
             finally
             {
+                BusyState.End();
                 SetBusy(false);
             }
+        }
+
+        /// <summary>
+        /// 前置检查（权限 → 占用闭环 → 目标同名 → 空间含免责确认）。
+        /// 返回 proceed=false 表示用户取消或检查未通过；totalBytes 为源内容大小。
+        /// </summary>
+        private async Task<(bool proceed, long totalBytes)> RunPreChecksAsync(string fromPath, string destDir, string toPath)
+        {
+            // 权限 + 占用 + 大小：一次遍历
+            var scan = await Task.Run(() => FileLockHelper.ScanDirectory(fromPath));
+            if (scan.Denied.Count > 0)
+            {
+                ResetProgress();
+                DialogHelper.Error("权限不足", "以下文件无读取权限，无法继续：\n\n" + JoinTop(scan.Denied, 20) + "\n\n请尝试以管理员身份运行或检查文件权限。");
+                return (false, 0);
+            }
+
+            if (scan.Locked.Count > 0)
+            {
+                var resolved = await PreCheckHelper.ResolveLocksAsync("文件被占用",
+                    "有程序正在占用源文件夹，需要退出或强制结束相关程序（含后台/托盘程序）后才能继续：\n\n" + fromPath,
+                    () => PreCheckHelper.DetectLockProcesses(fromPath));
+                if (!resolved) return (false, 0);
+            }
+
+            // 源内含目录链接：告知链接本身不会被复制，也不会跟随其目标
+            if (scan.ReparseDirs.Count > 0)
+            {
+                var shown = string.Join("\n", scan.ReparseDirs.Take(10));
+                if (scan.ReparseDirs.Count > 10) shown += $"\n... 共 {scan.ReparseDirs.Count} 个";
+                if (!DialogHelper.Confirm("源内含目录链接",
+                    $"源文件夹内发现 {scan.ReparseDirs.Count} 个目录链接（Junction/符号链接）：\n\n{shown}\n\n" +
+                    "为避免循环递归与重复复制：链接本身不会被复制到目标位置，其目标内容也不会被统计或检查（链接目标的数据不受任何影响）。\n\n是否继续？",
+                    "继续"))
+                    return (false, 0);
+            }
+
+            // 目标位置已是目录链接：写入会穿透到链接目标内部，硬拦截
+            if (Directory.Exists(destDir) && JunctionHelper.IsReparsePoint(destDir))
+            {
+                ResetProgress();
+                DialogHelper.Error("目标位置是目录链接",
+                    $"目标位置已存在且是目录链接：\n{destDir}\n\n" +
+                    "通过它复制会直接写入链接目标内部，可能导致数据错乱，已中止。\n请更换目标目录，或先删除该链接。");
+                return (false, 0);
+            }
+
+            // 目标同名存在检查
+            if (Directory.Exists(destDir))
+            {
+                bool empty;
+                try { empty = !Directory.EnumerateFileSystemEntries(destDir).Any(); }
+                catch { empty = false; }
+                if (!empty)
+                {
+                    ResetProgress();
+                    DialogHelper.Warn("目标已存在", $"目标文件夹下已存在同名文件夹且包含内容，无法操作：\n{destDir}\n\n请先清空或删除后重试。");
+                    return (false, 0);
+                }
+            }
+
+            // 空间检查（含 1GB 余量，不足时弹免责确认）
+            if (!PreCheckHelper.CheckSpaceInteractive(scan.TotalBytes, toPath, $"目标位置：{destDir}"))
+                return (false, 0);
+
+            return (true, scan.TotalBytes);
         }
 
         private void SetBusy(bool busy)
@@ -263,6 +338,8 @@ namespace linktool.Pages
             MoveButton.Content = busy ? "迁移中..." : "迁移";
             TerminalButton.IsEnabled = !busy;
             TerminalButton.Content = busy ? "执行中..." : "使用终端执行";
+            CalcFromSizeButton.IsEnabled = !busy;
+            CalcToSpaceButton.IsEnabled = !busy;
         }
 
         private void SetProgress(int completed, int total, string current)

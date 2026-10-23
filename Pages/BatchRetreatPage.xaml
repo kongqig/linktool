@@ -12,7 +12,7 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="批量退迁" Style="{StaticResource SectionTitle}"/>
-                    <TextBlock Text="一次退迁多条迁移生成的目录链接：解析目标 → 复制回原路径 → 删除链接与旧目标。可粘贴多行、拖入文件夹或点“选择”添加。" Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                    <TextBox Text="一次退迁多条迁移生成的目录链接：解析目标 → 复制回原路径 → 删除链接与旧目标。可粘贴多行、拖入文件夹或点“选择”添加。" Style="{StaticResource SelectableHint}" Margin="0,4,0,0"/>
                 </StackPanel>
             </Border>
 
@@ -24,13 +24,13 @@
                              TextWrapping="Wrap" Height="80" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
                              ToolTip="每行一个迁移后的链接路径"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                        <Button x:Name="AddButton" Content="添加" Style="{StaticResource PrimaryButton}" Width="120" Click="AddButton_Click"
-                                ToolTip="将编辑框中的每行路径作为一条退迁记录加入列表"/>
-                        <Button x:Name="BrowseButton" Content="选择" Style="{StaticResource SecondaryButton}" Width="120" Margin="12,0,0,0" Click="BrowseButton_Click"
+                        <Button x:Name="AddButton" Content="添加" Style="{StaticResource PrimaryButton}" MinWidth="120" Click="AddButton_Click"
+                                ToolTip="将编辑框中的路径解析后加入列表"/>
+                        <Button x:Name="BrowseButton" Content="选择" Style="{StaticResource SecondaryButton}" MinWidth="120" Margin="12,0,0,0" Click="BrowseButton_Click"
                                 ToolTip="从文件夹对话框选取一个链接路径加入列表"/>
                     </StackPanel>
-                    <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
-                               Text="支持一次粘贴多行路径，或点击“选择”，或直接从资源管理器拖入文件夹。"/>
+                    <TextBox Style="{StaticResource SelectableHint}" Margin="0,6,0,0"
+                             Text="换行分行，每行取第1列作为链接路径（多余列忽略）；带引号的路径自动提取；不存在的路径会加入列表并标红。也可点击“选择”或拖入文件夹。"/>
                 </StackPanel>
             </Border>
 
@@ -47,12 +47,45 @@
                               HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                               PreviewDragOver="RowGrid_PreviewDragOver" PreviewDrop="RowGrid_PreviewDrop">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="链接路径" Binding="{Binding LinkPath}" Width="300"/>
-                            <DataGridTextColumn Header="目标路径" Binding="{Binding Target}" Width="300" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="链接路径" Binding="{Binding LinkPath}" Width="300">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="ToolTip" Value="{Binding LinkPath}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsInvalid}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="目标路径" Binding="{Binding Target}" Width="300" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="ToolTip" Value="{Binding Target}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="大小" Width="220">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="算" MinWidth="32" Height="22" Padding="8,0" FontSize="12"
+                                                    Style="{StaticResource SecondaryButton}"
+                                                    ToolTip="解析该行链接的目标并计算内容大小" Click="CalcRowSize_Click"/>
+                                            <TextBlock Text="{Binding SizeText}" Margin="6,0,0,0" VerticalAlignment="Center"
+                                                       ToolTip="{Binding SizeText}"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="状态" Width="Auto">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center"
+                                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" ToolTip="{Binding Status}"
                                                    Foreground="{Binding Status, Converter={StaticResource StatusBrushConverter}}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -62,9 +95,11 @@
 
                     <!-- 底部操作与进度 -->
                     <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                        <Button x:Name="RemoveButton" Content="移除选中" Style="{StaticResource SecondaryButton}" Width="100" Click="RemoveButton_Click"/>
-                        <Button x:Name="ClearButton" Content="清空" Style="{StaticResource SecondaryButton}" Width="80" Margin="10,0,0,0" Click="ClearButton_Click"/>
-                        <Button x:Name="StartButton" Content="开始批量退迁" Style="{StaticResource PrimaryButton}" Width="150" Margin="10,0,0,0" Click="StartButton_Click"/>
+                        <Button x:Name="RemoveButton" Content="移除选中" Style="{StaticResource SecondaryButton}" MinWidth="100" Click="RemoveButton_Click"/>
+                        <Button x:Name="ClearButton" Content="清空" Style="{StaticResource SecondaryButton}" MinWidth="80" Margin="10,0,0,0" Click="ClearButton_Click"/>
+                        <Button x:Name="CalcAllButton" Content="计算全部" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0" Click="CalcAll_Click"
+                                ToolTip="按列表顺序逐行解析链接目标并计算内容大小（串行执行，避免磁盘过载）"/>
+                        <Button x:Name="StartButton" Content="开始批量退迁" Style="{StaticResource PrimaryButton}" MinWidth="150" Margin="10,0,0,0" Click="StartButton_Click"/>
                     </StackPanel>
                     <Grid Margin="0,16,0,0">
                         <Grid.ColumnDefinitions>

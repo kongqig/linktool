@@ -33,20 +33,40 @@ namespace linktool.Pages
         // ---- 通用链接位置（默认目录）----
         private void CommonLinkBrowseButton_Click(object sender, RoutedEventArgs e)
         {
-            var path = PathHistoryHelper.Browse("选择通用链接位置（默认目录）");
+            var path = PathHistoryHelper.Browse("选择通用链接位置（默认目录）", CommonLinkBox, CommonLinkKey);
             if (path != null) { CommonLinkBox.Text = path; PathHistoryHelper.Remember(CommonLinkBox, CommonLinkKey); }
         }
 
         // ---- 粘贴添加（目标路径）----
+        /// <summary>粘贴添加：换行分行；“|”分列时第1列=链接目录、第2列=目标路径；单列填入目标路径；引号段自动提取</summary>
         private void AddButton_Click(object sender, RoutedEventArgs e)
         {
-            var text = PasteBox.Text ?? "";
-            foreach (var line in text.Split('\n'))
+            var lines = PastePathParser.Parse(PasteBox.Text ?? "");
+            if (lines.Count == 0) return;
+
+            var added = 0;
+            foreach (var line in lines)
             {
-                var p = line.Trim();
-                if (p.Length > 0) _rows.Add(new BatchLinkRow("", p)); // 路径填入目标路径，链接位置留待填写
+                // 两列：第1列=链接目录，第2列=目标路径；单列：目标路径（链接目录留空）
+                var linkPath = line.Col2 != null ? line.Col1 : "";
+                var target = line.Col2 ?? line.Col1;
+
+                // 去重：相同 链接目录+目标 组合不重复添加
+                if (_rows.Any(r => string.Equals(r.Target?.Trim(), target, StringComparison.OrdinalIgnoreCase)
+                                   && string.Equals(r.LinkPath?.Trim(), linkPath, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                var row = new BatchLinkRow(linkPath, target);
+                if (!Directory.Exists(target))
+                {
+                    row.IsInvalidTarget = true;
+                    row.Status = "路径不存在";
+                }
+                _rows.Add(row);
+                added++;
             }
-            PasteBox.Clear();
+            if (added > 0)
+                PasteBox.Clear();
         }
 
         /// <summary>选择：从文件夹对话框选取一个目标路径加入列表</summary>
@@ -70,7 +90,10 @@ namespace linktool.Pages
             foreach (var f in files)
             {
                 var p = f.Trim();
-                if (p.Length > 0 && Directory.Exists(p)) _rows.Add(new BatchLinkRow("", p));
+                if (p.Length > 0 && Directory.Exists(p) &&
+                    !_rows.Any(r => string.Equals(r.Target?.Trim(), p, StringComparison.OrdinalIgnoreCase)
+                                    && string.IsNullOrWhiteSpace(r.LinkPath?.Trim())))
+                    _rows.Add(new BatchLinkRow("", p));
             }
             e.Handled = true;
         }
@@ -96,6 +119,7 @@ namespace linktool.Pages
 
             _running = true;
             SetRunningState(true);
+            BusyState.Begin();
 
             // 通用链接位置：未填写链接位置的行的链接默认创建到 该目录\目标文件夹名 下
             var commonLinkDir = CommonLinkBox.Text?.Trim() ?? "";
@@ -157,6 +181,7 @@ namespace linktool.Pages
             {
                 _running = false;
                 SetRunningState(false);
+                BusyState.End();
             }
         }
 
@@ -206,6 +231,7 @@ namespace linktool.Pages
         private string _linkPath = "";
         private string? _target;
         private string _status = "待处理";
+        private bool _isInvalidTarget;
 
         /// <summary>当前 LinkPath 是否为上一次运行时自动解析生成（下次运行时需要重置，避免嵌套）</summary>
         public bool IsAutoResolved { get; set; }
@@ -222,6 +248,13 @@ namespace linktool.Pages
         {
             get => _target;
             set { _target = value; OnPropertyChanged(nameof(Target)); }
+        }
+
+        /// <summary>目标路径不存在（标红）</summary>
+        public bool IsInvalidTarget
+        {
+            get => _isInvalidTarget;
+            set { _isInvalidTarget = value; OnPropertyChanged(nameof(IsInvalidTarget)); }
         }
 
         /// <summary>状态：待处理 / 处理中 / 成功 / 失败:原因</summary>

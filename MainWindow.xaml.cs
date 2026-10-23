@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Windows;
 using System.Windows.Controls;
@@ -77,6 +78,7 @@ namespace linktool
                     "batch-link" => new Pages.BatchLinkPage(),
                     "retreat" => new Pages.RetreatPage(),
                     "batch-retreat" => new Pages.BatchRetreatPage(),
+                    "scan" => new Pages.LinkScanPage(),
                     "help" => new Pages.HelpPage(),
                     "about" => new Pages.AboutPage(),
                     _ => null
@@ -89,5 +91,24 @@ namespace linktool
 
         /// <summary>提权运行按钮</summary>
         private void AdminRestartButton_Click(object sender, RoutedEventArgs e) => AdminHelper.RestartAsAdmin();
+
+        /// <summary>
+        /// 关闭拦截：有任务正在执行时弹窗确认，防止关闭程序导致复制不完整或数据异常。
+        /// </summary>
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            if (BusyState.IsBusy)
+            {
+                var confirmed = DialogHelper.Confirm("任务正在执行",
+                    "有任务正在执行，现在关闭程序可能导致复制不完整或数据异常。\n\n是否仍要关闭程序？",
+                    "关闭程序", danger: true);
+                if (!confirmed)
+                {
+                    e.Cancel = true; // 留在程序继续执行任务
+                    return;
+                }
+            }
+            base.OnClosing(e);
+        }
     }
 }

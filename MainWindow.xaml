@@ -55,6 +55,8 @@
                     <RadioButton GroupName="Nav" Style="{StaticResource NavRadioStyle}"
                                  Content="批量退迁" Tag="batch-retreat" Checked="Nav_Checked"/>
                     <RadioButton GroupName="Nav" Style="{StaticResource NavRadioStyle}"
+                                 Content="链接扫描" Tag="scan" Checked="Nav_Checked"/>
+                    <RadioButton GroupName="Nav" Style="{StaticResource NavRadioStyle}"
                                  Content="帮助" Tag="help" Checked="Nav_Checked"/>
                     <RadioButton GroupName="Nav" Style="{StaticResource NavRadioStyle}"
                                  Content="关于" Tag="about" Checked="Nav_Checked"/>

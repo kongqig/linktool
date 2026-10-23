@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -17,6 +16,7 @@ namespace linktool.Pages
     /// <summary>
     /// 批量迁移页：将一个或多个文件夹批量迁移到目标位置（复制 → 删除源 → 创建目录链接）。
     /// 支持多对一（共用通用目标目录）与多对多（每行单独指定 To），后台顺序执行、静默自动。
+    /// 粘贴支持 源|目标 两列；无效路径标红；行大小手动计算；执行前逐行权限/占用/空间检查。
     /// </summary>
     public partial class BatchMigrationPage : UserControl
     {
@@ -24,6 +24,9 @@ namespace linktool.Pages
 
         /// <summary>迁移行列表（DataGrid 数据源）</summary>
         private readonly ObservableCollection<MigrateRow> _rows = new();
+
+        private bool _busy; // 批量迁移运行中
+        private bool _calcRunning; // 计算全部运行中
 
         public BatchMigrationPage()
         {
@@ -40,6 +43,9 @@ namespace linktool.Pages
             private string _from = "";
             private string? _to;
             private string _status = "待处理";
+            private string _sizeText = "—";
+            private bool _isInvalidFrom;
+            private bool _isInvalidTo;
             private bool _isRunning;
             private int _state; // 0=待处理/处理中, 1=成功, 2=失败
 
@@ -64,6 +70,27 @@ namespace linktool.Pages
                 set { _status = value; OnPropertyChanged(); }
             }
 
+            /// <summary>源文件夹大小显示（手动点击“算”后填充）</summary>
+            public string SizeText
+            {
+                get => _sizeText;
+                set { _sizeText = value; OnPropertyChanged(); }
+            }
+
+            /// <summary>源路径不存在（标红）</summary>
+            public bool IsInvalidFrom
+            {
+                get => _isInvalidFrom;
+                set { _isInvalidFrom = value; OnPropertyChanged(); }
+            }
+
+            /// <summary>行目标路径不存在（标红）</summary>
+            public bool IsInvalidTo
+            {
+                get => _isInvalidTo;
+                set { _isInvalidTo = value; OnPropertyChanged(); }
+            }
+
             /// <summary>是否正在处理（着色：处理中/警告）</summary>
             public bool IsRunning
             {
@@ -78,10 +105,13 @@ namespace linktool.Pages
             public bool IsFailed => _state == 2;
 
             /// <summary>构造</summary>
-            public MigrateRow(string from, string? to)
+            public MigrateRow(string from, string? to, bool invalidFrom = false, bool invalidTo = false)
             {
                 _from = from;
                 _to = to;
+                _isInvalidFrom = invalidFrom;
+                _isInvalidTo = invalidTo;
+                if (invalidFrom || invalidTo) _status = "路径不存在";
             }
 
             /// <summary>标记为成功</summary>
@@ -133,7 +163,7 @@ namespace linktool.Pages
 
         private void CommonToBrowse_Click(object sender, RoutedEventArgs e)
         {
-            var path = PathHistoryHelper.Browse("选择通用目标目录");
+            var path = PathHistoryHelper.Browse("选择通用目标目录", CommonToBox, CommonToKey);
             if (path != null)
             {
                 CommonToBox.Text = path;
@@ -141,21 +171,42 @@ namespace linktool.Pages
             }
         }
 
+        /// <summary>算可用空间：显示通用目标目录所在磁盘的可用空间</summary>
+        private void CommonSpace_Click(object sender, RoutedEventArgs e)
+        {
+            var path = CommonToBox.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                DialogHelper.Warn("提示", "请先填写通用目标目录。");
+                return;
+            }
+            var free = SizeHelper.GetFreeSpace(path);
+            CommonSpaceText.Text = free == null ? "无法获取可用空间" : $"可用 {SizeHelper.Format(free.Value)}";
+        }
+
         #endregion
 
         #region 添加 / 移除 / 清空
 
-        /// <summary>粘贴添加：将多行文本中每行非空路径作为 From 加入列表</summary>
+        /// <summary>粘贴添加：解析多行文本（换行分行、“|”分列、引号段提取）加入列表</summary>
         private void AddPaste_Click(object sender, RoutedEventArgs e)
         {
-            var text = PasteBox.Text ?? "";
-            var lines = text.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
-                           .Select(l => l.Trim())
-                           .Where(l => l.Length > 0)
-                           .ToList();
+            var lines = PastePathParser.Parse(PasteBox.Text ?? "");
+            if (lines.Count == 0) return;
+
+            var added = 0;
             foreach (var line in lines)
-                _rows.Add(new MigrateRow(line, null));
-            if (lines.Count > 0)
+            {
+                // 去重：相同主路径不重复添加
+                if (_rows.Any(r => string.Equals(r.From?.Trim(), line.Col1, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                var invalidFrom = !Directory.Exists(line.Col1);
+                var invalidTo = line.Col2 != null && !Directory.Exists(line.Col2);
+                _rows.Add(new MigrateRow(line.Col1, line.Col2, invalidFrom, invalidTo));
+                added++;
+            }
+            if (added > 0)
                 PasteBox.Text = "";
         }
 
@@ -184,6 +235,60 @@ namespace linktool.Pages
 
         #endregion
 
+        #region 大小计算
+
+        /// <summary>计算单行源文件夹大小（行内“算”按钮）</summary>
+        private async void CalcRowSize_Click(object sender, RoutedEventArgs e)
+        {
+            if (_busy || _calcRunning) return;
+            if (sender is not FrameworkElement { DataContext: MigrateRow row }) return;
+            await CalcRowSizeAsync(row);
+        }
+
+        /// <summary>计算全部：按列表顺序逐行计算（串行，避免磁盘过载）</summary>
+        private async void CalcAll_Click(object sender, RoutedEventArgs e)
+        {
+            if (_busy || _calcRunning) return;
+            var targets = _rows.Where(r => !string.IsNullOrWhiteSpace(r.From)).ToList();
+            if (targets.Count == 0) return;
+
+            _calcRunning = true;
+            CalcAllButton.IsEnabled = false;
+            try
+            {
+                foreach (var row in targets)
+                    await CalcRowSizeAsync(row);
+            }
+            finally
+            {
+                _calcRunning = false;
+                CalcAllButton.IsEnabled = true;
+            }
+        }
+
+        private async Task CalcRowSizeAsync(MigrateRow row)
+        {
+            var from = row.From?.Trim() ?? "";
+            if (from.Length == 0 || !Directory.Exists(from))
+            {
+                row.SizeText = "无法计算";
+                return;
+            }
+            row.SizeText = "计算中…";
+            try
+            {
+                var result = await SizeHelper.GetSizeAsync(from, CancellationToken.None);
+                row.SizeText = $"{SizeHelper.Format(result.TotalBytes)} · {result.FileCount} 个文件"
+                               + (result.Incomplete ? "（部分无法读取）" : "");
+            }
+            catch
+            {
+                row.SizeText = "计算失败";
+            }
+        }
+
+        #endregion
+
         #region 拖拽添加
 
         private void Grid_PreviewDragOver(object sender, DragEventArgs e)
@@ -199,7 +304,8 @@ namespace linktool.Pages
                 return;
             foreach (var path in files)
             {
-                if (Directory.Exists(path))
+                if (Directory.Exists(path) &&
+                    !_rows.Any(r => string.Equals(r.From?.Trim(), path.Trim(), StringComparison.OrdinalIgnoreCase)))
                     _rows.Add(new MigrateRow(path, null));
             }
             e.Handled = true;
@@ -246,6 +352,7 @@ namespace linktool.Pages
             SetBusy(true);
             ResetProgress();
             ProgressBar.Maximum = pending.Count;
+            BusyState.Begin();
 
             try
             {
@@ -257,6 +364,7 @@ namespace linktool.Pages
             }
             finally
             {
+                BusyState.End();
                 SetBusy(false);
             }
         }
@@ -283,7 +391,7 @@ namespace linktool.Pages
             }
         }
 
-        /// <summary>处理单行：校验 → 锁检测 → 复制 → 删除源 → 创建链接</summary>
+        /// <summary>处理单行：校验 → 扫描（权限/占用/大小）→ 空间检查 → 复制 → 删除源 → 创建链接</summary>
         private void ProcessRow(MigrateRow row, string commonTo, ProgressHandler copyProgress)
         {
             var from = row.From?.Trim() ?? "";
@@ -300,33 +408,50 @@ namespace linktool.Pages
             var fromName = Path.GetFileName(from.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             var destDir = Path.Combine(effectiveTo!, fromName);
 
-            // 3. 前置权限预检
-            try
+            // 3. 前置综合扫描：权限 + 占用 + 大小（一次遍历）
+            ScanResult scan;
+            try { scan = FileLockHelper.ScanDirectory(from); }
+            catch (Exception ex) { MarkFailed(row, "扫描失败:" + ex.Message); return; }
+
+            if (scan.Denied.Count > 0)
             {
-                var denied = FileLockHelper.CheckFileAccessibility(from);
-                if (denied.Count > 0)
+                var shown = string.Join("; ", scan.Denied.Take(5));
+                if (scan.Denied.Count > 5) shown += $"; … 共 {scan.Denied.Count} 项";
+                MarkFailed(row, "无读取权限，请提权运行后重试：" + shown);
+                return;
+            }
+
+            if (scan.Locked.Count > 0)
+            {
+                var procs = FileLockHelper.GetLockingProcesses(from);
+                if (procs.Count == 0) procs = FileLockHelper.GetProcessesLockingDirectory(from);
+                var names = procs.Count > 0
+                    ? string.Join(", ", procs.Select(p => $"{p.ProcessName}(PID {p.Id})"))
+                    : "未知进程";
+                MarkFailed(row, "源被占用：" + names);
+                return;
+            }
+
+            // 4. 空间检查（含 1GB 余量；批量静默直接失败，不弹窗）
+            var free = SizeHelper.GetFreeSpace(effectiveTo!);
+            if (free != null)
+            {
+                var required = scan.TotalBytes + SizeHelper.SpaceMarginBytes;
+                if (free.Value < required)
                 {
-                    var shown = string.Join("; ", denied.Take(5));
-                    if (denied.Count > 5) shown += $"; … 共 {denied.Count} 项";
-                    MarkFailed(row, "无读取权限，请提权运行后重试：" + shown);
+                    MarkFailed(row, $"磁盘空间不足：需要 {SizeHelper.Format(required)}，可用 {SizeHelper.Format(free.Value)}");
                     return;
                 }
             }
-            catch (Exception ex) { MarkFailed(row, "权限检查失败:" + ex.Message); return; }
 
-            // 4. 前置锁定检测
-            try
+            // 5. 目标位置已是目录链接 → 写入会穿透到链接目标内部，直接判失败
+            if (Directory.Exists(destDir) && JunctionHelper.IsReparsePoint(destDir))
             {
-                var locked = FileLockHelper.CheckFileLocks(from);
-                if (locked.Count > 0)
-                {
-                    MarkFailed(row, "源文件夹被占用，请关闭占用程序后重试");
-                    return;
-                }
+                MarkFailed(row, $"目标位置已是目录链接，写入会穿透到链接目标内部：{destDir}");
+                return;
             }
-            catch (Exception ex) { MarkFailed(row, "锁定检测失败:" + ex.Message); return; }
 
-            // 4. 目标同名存在检查
+            // 6. 目标同名存在检查
             if (Directory.Exists(destDir))
             {
                 bool empty;
@@ -337,7 +462,7 @@ namespace linktool.Pages
 
             try
             {
-                // 5. 复制
+                // 7. 复制
                 var allFiles = FileOps.GetAllFiles(from);
                 if (allFiles.Count == 0)
                 {
@@ -350,7 +475,7 @@ namespace linktool.Pages
                     FileOps.CopyDirectoryFull(from, destDir, allFiles, CancellationToken.None, copyProgress);
                 }
 
-                // 6. 删除源（批量静默：不弹 UAC 提权）
+                // 8. 删除源（批量静默：不弹 UAC 提权）
                 var deleted = FileOps.DeleteSourceDirectory(from, CancellationToken.None, allowAdminFallback: false);
                 if (!deleted)
                 {
@@ -358,10 +483,15 @@ namespace linktool.Pages
                     return;
                 }
 
-                // 7. 创建目录链接
+                // 9. 创建目录链接
                 JunctionHelper.CreateJunction(from, destDir);
 
-                Dispatcher.Invoke(row.MarkSuccess);
+                Dispatcher.Invoke(() =>
+                {
+                    row.MarkSuccess();
+                    if (scan.ReparseDirs.Count > 0)
+                        row.Status = $"成功（跳过 {scan.ReparseDirs.Count} 个链接子目录）";
+                });
             }
             catch (JunctionHelperJunctionException ex)
             {
@@ -394,12 +524,15 @@ namespace linktool.Pages
 
         private void SetBusy(bool busy)
         {
+            _busy = busy;
             StartButton.IsEnabled = !busy;
             StartButton.Content = busy ? "迁移中..." : "开始批量迁移";
             AddButton.IsEnabled = !busy;
             BrowseButton.IsEnabled = !busy;
             RemoveButton.IsEnabled = !busy;
             ClearButton.IsEnabled = !busy;
+            CalcAllButton.IsEnabled = !busy && !_calcRunning;
+            CommonSpaceButton.IsEnabled = !busy;
             CommonToBox.IsEnabled = !busy;
             PasteBox.IsEnabled = !busy;
         }

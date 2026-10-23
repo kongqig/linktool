@@ -15,22 +15,23 @@ namespace linktool.Services
     /// </summary>
     public static class FileOps
     {
-        /// <summary>获取目录下所有文件（非递归异常安全）</summary>
+        /// <summary>获取目录下所有文件（非递归异常安全）。跳过 ReparsePoint 条目：不跟随内部链接（防循环/防跟出源外）</summary>
         public static List<string> GetAllFiles(string path)
         {
             var files = new List<string>();
-            try { files.AddRange(Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)); }
+            try { files.AddRange(Directory.EnumerateFiles(path, "*", FileLockHelper.EnumerationOptionsSkipReparse)); }
             catch { }
             return files;
         }
 
-        /// <summary>使用 .NET API 完整复制目录（保留属性/时间戳），通过 progress 回调上报进度</summary>
+        /// <summary>使用 .NET API 完整复制目录（保留属性/时间戳），通过 progress 回调上报进度。
+        /// 目录树枚举同样跳过 ReparsePoint：链接子目录不会被复制（由前置检查告知用户）</summary>
         public static void CopyDirectoryFull(string sourceDir, string destDir, List<string> allFiles, CancellationToken ct, ProgressHandler? progress)
         {
             var completed = 0;
             var total = allFiles.Count;
 
-            foreach (var dir in Directory.EnumerateDirectories(sourceDir, "*", SearchOption.AllDirectories))
+            foreach (var dir in Directory.EnumerateDirectories(sourceDir, "*", FileLockHelper.EnumerationOptionsSkipReparse))
             {
                 ct.ThrowIfCancellationRequested();
                 var relative = dir.Substring(sourceDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -64,7 +65,7 @@ namespace linktool.Services
             var psi = new ProcessStartInfo
             {
                 FileName = "robocopy.exe",
-                Arguments = $"\"{sourceDir}\" \"{destDir}\" /E /COPYALL /DCOPY:T /R:3 /W:5",
+                Arguments = $"\"{sourceDir}\" \"{destDir}\" /E /COPYALL /DCOPY:T /XJ /R:3 /W:5",
                 UseShellExecute = false,
                 CreateNoWindow = false
             };

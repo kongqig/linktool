@@ -10,7 +10,7 @@ namespace linktool.Pages
         {
             InitializeComponent();
             var version = Assembly.GetExecutingAssembly().GetName().Version;
-            VersionText.Text = version != null ? $"版本 {version}" : "版本 1.0";
+            VersionText.Text = version != null ? $"版本 {version}" : "版本 2.1";
         }
     }
 }
